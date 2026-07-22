@@ -25,6 +25,7 @@ Granolie is a Linux-first local app modeled on Granola's core flow:
 - configurable transcription and notes providers, API URLs, and models
 - fresh profiles default to local Ollama `phi4-mini` notes and local faster-whisper `base` transcription; later launches retain the last used AI settings
 - a ChatGPT-like `Ask Granolie` workspace is the default view, with an anchored composer, Enter-to-send, Shift+Enter for a new line, and clickable session sources for each local answer
+- a branded, animated local-AI activity indicator for saved-note questions, transcription, and note generation, with reduced-motion support
 - switch to the `Session` workspace to record, transcribe, edit, and export a single note
 
 ## Desktop run

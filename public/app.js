@@ -30,6 +30,8 @@ const elements = {
   openWriterButton: document.querySelector("#open-writer-button"),
   openTranscriptWriterButton: document.querySelector("#open-transcript-writer-button"),
   phi4MiniPresetButton: document.querySelector("#phi4-mini-preset-button"),
+  processingLabel: document.querySelector("#processing-label"),
+  processingStatus: document.querySelector("#processing-status"),
   microphoneSourceInput: document.querySelector("#microphone-source-input"),
   recordButton: document.querySelector("#record-button"),
   recordingMonitor: document.querySelector("#recording-monitor"),
@@ -95,6 +97,7 @@ const state = {
   sessions: [],
   settings: loadSettings(),
   ollamaModels: [],
+  processingTasks: [],
 };
 
 function loadSettings() {
@@ -329,6 +332,22 @@ function setStatus(message) {
   elements.statusText.textContent = message;
 }
 
+function startProcessing(label) {
+  const task = { id: crypto.randomUUID(), label };
+  state.processingTasks.push(task);
+  elements.processingLabel.textContent = label;
+  elements.processingStatus.hidden = false;
+
+  return () => {
+    state.processingTasks = state.processingTasks.filter((item) => item.id !== task.id);
+    const activeTask = state.processingTasks.at(-1);
+    elements.processingStatus.hidden = !activeTask;
+    if (activeTask) {
+      elements.processingLabel.textContent = activeTask.label;
+    }
+  };
+}
+
 async function loadAppInfo() {
   const data = await api("/api/app-info");
   elements.appVersion.textContent = data.displayVersion || "";
@@ -510,7 +529,17 @@ function renderChat() {
     node.className = `chat-message ${message.role}${message.pending ? " pending" : ""}`;
     const content = document.createElement("div");
     content.className = "chat-message-content";
-    content.textContent = message.content;
+    if (message.pending) {
+      content.classList.add("chat-thinking");
+      const label = document.createElement("span");
+      label.textContent = "Granolie is working";
+      const rail = document.createElement("span");
+      rail.className = "chat-thinking-rail";
+      rail.append(document.createElement("span"));
+      content.append(label, rail);
+    } else {
+      content.textContent = message.content;
+    }
     node.append(content);
 
     if (message.sources?.length) {
@@ -560,6 +589,7 @@ async function askSavedSessions() {
 
   setStatus("Asking local AI about saved notes...");
   elements.askSessionsButton.disabled = true;
+  const finishProcessing = startProcessing("Searching your saved sessions");
   state.chatMessages.push({ role: "user", content: question });
   state.chatMessages.push({ role: "assistant", content: "Thinking...", pending: true });
   elements.sessionQuestionInput.value = "";
@@ -592,6 +622,7 @@ async function askSavedSessions() {
     renderChat();
     setStatus(error.message);
   } finally {
+    finishProcessing();
     elements.askSessionsButton.disabled = false;
   }
 }
@@ -922,6 +953,7 @@ async function transcribeAudio() {
 
   setStatus("Transcribing audio...");
   elements.transcribeButton.disabled = true;
+  const finishProcessing = startProcessing("Transcribing audio locally");
 
   try {
     saveSettings();
@@ -950,6 +982,7 @@ async function transcribeAudio() {
   } catch (error) {
     setStatus(error.message);
   } finally {
+    finishProcessing();
     updateRecordingState();
   }
 }
@@ -969,6 +1002,7 @@ async function generateNotes() {
 
   setStatus("Generating notes...");
   elements.generateNotesButton.disabled = true;
+  const finishProcessing = startProcessing("Turning transcript into notes");
 
   try {
     saveSettings();
@@ -996,6 +1030,7 @@ async function generateNotes() {
   } catch (error) {
     setStatus(error.message);
   } finally {
+    finishProcessing();
     elements.generateNotesButton.disabled = false;
   }
 }

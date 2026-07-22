@@ -30,6 +30,14 @@
           <div class="app-context">
             <span class="app-context-name">Granolie</span>
             <p id="status-text" class="status-text">Ready.</p>
+            <div id="processing-status" class="processing-status" hidden role="status" aria-live="polite">
+              <span class="granolie-mark" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i>
+                <b></b><b></b><b></b>
+              </span>
+              <span id="processing-label">Granolie is working</span>
+              <span class="processing-rail" aria-hidden="true"><span></span></span>
+            </div>
           </div>
           <div class="view-tabs" role="tablist" aria-label="Workspace view">
             <button class="view-tab active" id="chat-tab-button" type="button" role="tab" aria-selected="true">Ask Granolie</button>
