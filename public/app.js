@@ -336,15 +336,18 @@ function startProcessing(label) {
   const task = { id: crypto.randomUUID(), label };
   state.processingTasks.push(task);
   elements.processingLabel.textContent = label;
-  elements.processingStatus.hidden = false;
+  elements.processingStatus.classList.add("active");
 
   return () => {
     state.processingTasks = state.processingTasks.filter((item) => item.id !== task.id);
     const activeTask = state.processingTasks.at(-1);
-    elements.processingStatus.hidden = !activeTask;
     if (activeTask) {
       elements.processingLabel.textContent = activeTask.label;
+      return;
     }
+
+    elements.processingLabel.textContent = "Ready";
+    elements.processingStatus.classList.remove("active");
   };
 }
 
