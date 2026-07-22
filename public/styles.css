@@ -455,6 +455,26 @@ textarea {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
+.chat-view.empty-chat {
+  grid-template-rows: minmax(0, 0.42fr) auto minmax(0, 0.58fr);
+}
+
+.chat-view.empty-chat .chat-thread {
+  grid-row: 1;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+.chat-view.empty-chat .chat-empty-state {
+  margin-top: min(10vh, 5rem);
+}
+
+.chat-view.empty-chat .chat-composer {
+  grid-row: 2;
+  border-top: none;
+  background: transparent;
+}
+
 .chat-view[hidden],
 .session-view[hidden] {
   display: none;

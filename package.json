@@ -24,7 +24,7 @@
     "url": "https://github.com/mezzenger/Granolie.git"
   },
   "granolie": {
-    "buildRevision": 27
+    "buildRevision": 28
   },
   "scripts": {
     "start": "electron .",

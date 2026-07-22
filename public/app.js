@@ -91,6 +91,7 @@ const state = {
   isApplyingSession: false,
   isRecording: false,
   isSaving: false,
+  isUntitledSessionName: false,
   mediaRecorder: null,
   mediaStream: null,
   recordingChunks: [],
@@ -492,6 +493,8 @@ function applySession(session, options = {}) {
   const preserveAudio = options.preserveAudio === true;
   state.isApplyingSession = true;
   state.activeSessionId = session.id;
+  state.isUntitledSessionName =
+    session.title === "Untitled session" && !String(session.transcript || "").trim() && !String(session.notes || "").trim();
   elements.titleInput.value = session.title || "";
   elements.templateSelect.value = session.template || "general";
   elements.transcriptInput.value = session.transcript || "";
@@ -533,6 +536,7 @@ function setActiveView(view) {
 
 function renderChat() {
   elements.chatThread.innerHTML = "";
+  elements.chatView.classList.toggle("empty-chat", !state.chatMessages.length);
 
   if (!state.chatMessages.length) {
     elements.chatThread.append(elements.chatEmptyState);
@@ -747,6 +751,19 @@ function scheduleSave() {
     state.saveTimerId = null;
     saveActiveSession();
   }, 700);
+}
+
+function clearInitialSessionName() {
+  if (!state.isUntitledSessionName) {
+    return;
+  }
+
+  state.isUntitledSessionName = false;
+  elements.titleInput.value = "";
+}
+
+function closePaneMenu(control) {
+  control.closest(".pane-menu")?.removeAttribute("open");
 }
 
 function updateRecordingState() {
@@ -1355,6 +1372,7 @@ function bindEvents() {
   elements.titleInput.addEventListener("keydown", (event) => {
     saveTitleAndFocusSidebar(event).catch((error) => setStatus(error.message));
   });
+  elements.titleInput.addEventListener("focus", clearInitialSessionName);
   elements.importTranscriptButton.addEventListener("click", () => {
     elements.transcriptFileInput.click();
   });
@@ -1371,6 +1389,9 @@ function bindEvents() {
   });
   elements.exportTranscriptButton.addEventListener("click", () => exportContent("transcript"));
   elements.openTranscriptWriterButton.addEventListener("click", () => openContentInWriter("transcript"));
+  document.querySelectorAll(".pane-menu-content button").forEach((button) => {
+    button.addEventListener("click", () => closePaneMenu(button));
+  });
   elements.phi4MiniPresetButton.addEventListener("click", applyPhi4MiniPreset);
   elements.fasterWhisperPresetButton.addEventListener("click", applyFasterWhisperPreset);
   elements.recordButton.addEventListener("click", startRecording);
@@ -1456,6 +1477,7 @@ async function init() {
     setSidebarCollapsed(state.sidebarCollapsed);
     applySettings();
     bindEvents();
+    renderChat();
     updateWordCounts();
     updateRecordingState();
     renderOllamaModelSuggestions();
