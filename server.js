@@ -239,6 +239,25 @@ async function deleteSession(id) {
   await fs.unlink(sessionPath(id));
 }
 
+function isDiscardableEmptySession(session) {
+  return (
+    session.title === "Untitled session" &&
+    session.template === "general" &&
+    !String(session.transcript || "").trim() &&
+    !String(session.notes || "").trim() &&
+    !String(session.context || "").trim() &&
+    !String(session.summary || "").trim()
+  );
+}
+
+async function cleanupEmptySessions() {
+  const sessions = await listFullSessions();
+  const removable = sessions.filter(isDiscardableEmptySession);
+
+  await Promise.all(removable.map((session) => deleteSession(session.id).catch(() => {})));
+  return removable.length;
+}
+
 function normalizeBaseUrl(value, fallback = "https://api.openai.com/v1") {
   const input = (value || fallback).trim();
   return input.endsWith("/") ? input.slice(0, -1) : input;
@@ -1146,11 +1165,13 @@ if (require.main === module) {
 module.exports = {
   buildNotePrompt,
   buildSessionQuestionPrompt,
+  cleanupEmptySessions,
   createSessionRecord,
   deriveTitle,
   getAppInfo,
   getDataDir,
   isGreetingQuestion,
+  isDiscardableEmptySession,
   listOllamaModels,
   selectQuestionSessions,
   normalizeAiProvider,

@@ -6,6 +6,7 @@ const {
   buildNotePrompt,
   buildSessionQuestionPrompt,
   deriveTitle,
+  isDiscardableEmptySession,
   isGreetingQuestion,
   normalizeAiProvider,
   normalizeBaseUrl,
@@ -81,6 +82,22 @@ test("isGreetingQuestion identifies simple greetings without searching sessions"
   assert.equal(isGreetingQuestion("hello"), true);
   assert.equal(isGreetingQuestion("Good morning!"), true);
   assert.equal(isGreetingQuestion("What did we decide?"), false);
+});
+
+test("isDiscardableEmptySession only matches untouched placeholder sessions", () => {
+  const emptySession = {
+    title: "Untitled session",
+    template: "general",
+    transcript: "",
+    notes: "",
+    context: "",
+    summary: "",
+  };
+
+  assert.equal(isDiscardableEmptySession(emptySession), true);
+  assert.equal(isDiscardableEmptySession({ ...emptySession, transcript: "Keep this." }), false);
+  assert.equal(isDiscardableEmptySession({ ...emptySession, template: "standup" }), false);
+  assert.equal(isDiscardableEmptySession({ ...emptySession, title: "Planning" }), false);
 });
 
 function createMockRequest(url) {

@@ -7,7 +7,7 @@ let serverHandle = null;
 let isQuitting = false;
 
 const ALLOWED_PERMISSIONS = new Set(["clipboard-sanitized-write", "fullscreen", "media"]);
-const { getAppInfo, startServer } = require(path.join(__dirname, "..", "server"));
+const { cleanupEmptySessions, getAppInfo, startServer } = require(path.join(__dirname, "..", "server"));
 
 function getWriterUnoHelperPath() {
   const candidates = [];
@@ -214,7 +214,11 @@ if (!hasLock) {
     event.preventDefault();
     isQuitting = true;
 
-    stopBackend()
+    cleanupEmptySessions()
+      .catch((error) => {
+        console.error("Failed to remove empty Granolie sessions:", error);
+      })
+      .then(() => stopBackend())
       .catch((error) => {
         console.error("Failed to stop Granolie backend cleanly:", error);
       })
