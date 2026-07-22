@@ -9,6 +9,7 @@ const elements = {
   chatTabButton: document.querySelector("#chat-tab-button"),
   chatThread: document.querySelector("#chat-thread"),
   chatView: document.querySelector("#chat-view"),
+  clearNotesButton: document.querySelector("#clear-notes-button"),
   contextInput: document.querySelector("#context-input"),
   copyNotesButton: document.querySelector("#copy-notes-button"),
   copyTranscriptButton: document.querySelector("#copy-transcript-button"),
@@ -1074,6 +1075,28 @@ async function deleteActiveSession() {
   setStatus("Session deleted.");
 }
 
+async function clearAiNotes() {
+  if (!elements.notesInput.value.trim()) {
+    setStatus("There are no AI notes to clear.");
+    return;
+  }
+
+  const confirmed = window.confirm("Clear the AI notes? The transcript will be kept.");
+  if (!confirmed) {
+    return;
+  }
+
+  elements.notesInput.value = "";
+  updateWordCounts();
+  if (state.saveTimerId) {
+    window.clearTimeout(state.saveTimerId);
+    state.saveTimerId = null;
+  }
+
+  await saveActiveSession();
+  setStatus("AI notes cleared. Transcript retained.");
+}
+
 function exportMarkdown() {
   const title = elements.titleInput.value.trim() || "Untitled session";
   const content = [
@@ -1337,6 +1360,9 @@ function bindEvents() {
   });
   elements.copyNotesButton.addEventListener("click", () => {
     copyContent("notes").catch((error) => setStatus(error.message));
+  });
+  elements.clearNotesButton.addEventListener("click", () => {
+    clearAiNotes().catch((error) => setStatus(error.message));
   });
   elements.exportNotesButton.addEventListener("click", () => exportContent("notes"));
   elements.openWriterButton.addEventListener("click", () => openContentInWriter("notes"));
