@@ -352,6 +352,15 @@ textarea {
   background: rgba(67, 181, 129, 0.18);
 }
 
+.processing-rail {
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.processing-status.active .processing-rail {
+  opacity: 1;
+}
+
 .processing-rail span,
 .chat-thinking-rail span {
   display: block;
@@ -362,7 +371,7 @@ textarea {
 }
 
 .processing-rail span {
-  width: 65%;
+  width: 0;
 }
 
 .processing-status.active .processing-rail span,
