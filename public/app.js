@@ -3,6 +3,11 @@ const elements = {
   appVersion: document.querySelector("#app-version"),
   askSessionsButton: document.querySelector("#ask-sessions-button"),
   audioFileInput: document.querySelector("#audio-file-input"),
+  chatComposer: document.querySelector("#chat-composer"),
+  chatEmptyState: document.querySelector("#chat-empty-state"),
+  chatTabButton: document.querySelector("#chat-tab-button"),
+  chatThread: document.querySelector("#chat-thread"),
+  chatView: document.querySelector("#chat-view"),
   contextInput: document.querySelector("#context-input"),
   copyNotesButton: document.querySelector("#copy-notes-button"),
   copyTranscriptButton: document.querySelector("#copy-transcript-button"),
@@ -31,11 +36,10 @@ const elements = {
   recordingMeta: document.querySelector("#recording-meta"),
   sessionItemTemplate: document.querySelector("#session-item-template"),
   sessionList: document.querySelector("#session-list"),
-  sessionAnswer: document.querySelector("#session-answer"),
-  sessionAnswerSources: document.querySelector("#session-answer-sources"),
-  sessionAnswerText: document.querySelector("#session-answer-text"),
   sessionQuestionInput: document.querySelector("#session-question-input"),
   sessionSearch: document.querySelector("#session-search"),
+  sessionTabButton: document.querySelector("#session-tab-button"),
+  sessionView: document.querySelector("#session-view"),
   questionScopeSelect: document.querySelector("#question-scope-select"),
   statusText: document.querySelector("#status-text"),
   stopButton: document.querySelector("#stop-button"),
@@ -65,6 +69,7 @@ const OPENAI_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe";
 const FASTER_WHISPER_MODEL = "base";
 
 const state = {
+  activeView: "chat",
   activeSessionId: null,
   audioBlob: null,
   audioFileName: "",
@@ -76,6 +81,7 @@ const state = {
   audioLevelSources: [],
   captureStreams: [],
   audioLevelAnalyser: null,
+  chatMessages: [],
   isApplyingSession: false,
   isRecording: false,
   isSaving: false,
@@ -430,7 +436,11 @@ function renderSessionList() {
     node.querySelector(".session-item-title").textContent = session.title || "Untitled session";
     node.querySelector(".session-item-summary").textContent = session.summary || "No summary yet";
     node.querySelector(".session-item-meta").textContent = relativeTime(session.updatedAt);
-    node.addEventListener("click", () => loadSession(session.id));
+    node.addEventListener("click", () => {
+      loadSession(session.id)
+        .then(() => setActiveView("session"))
+        .catch((error) => setStatus(error.message));
+    });
     elements.sessionList.append(node);
   }
 }
@@ -471,23 +481,63 @@ async function refreshSessions(preferredId) {
   }
 }
 
-function renderSessionAnswer(data) {
-  elements.sessionAnswerText.textContent = data.answer || "";
-  elements.sessionAnswerSources.innerHTML = "";
+function setActiveView(view) {
+  const showChat = view === "chat";
+  state.activeView = showChat ? "chat" : "session";
+  elements.chatView.hidden = !showChat;
+  elements.sessionView.hidden = showChat;
+  elements.chatTabButton.classList.toggle("active", showChat);
+  elements.sessionTabButton.classList.toggle("active", !showChat);
+  elements.chatTabButton.setAttribute("aria-selected", String(showChat));
+  elements.sessionTabButton.setAttribute("aria-selected", String(!showChat));
 
-  for (const source of data.sources || []) {
-    const button = document.createElement("button");
-    button.className = "ghost-button";
-    button.type = "button";
-    button.textContent = source.title || "Untitled session";
-    button.title = `Open ${source.title || "session"}`;
-    button.addEventListener("click", () => {
-      loadSession(source.id).catch((error) => setStatus(error.message));
-    });
-    elements.sessionAnswerSources.append(button);
+  if (showChat) {
+    window.requestAnimationFrame(() => elements.sessionQuestionInput.focus());
+  }
+}
+
+function renderChat() {
+  elements.chatThread.innerHTML = "";
+
+  if (!state.chatMessages.length) {
+    elements.chatThread.append(elements.chatEmptyState);
+    elements.chatEmptyState.hidden = false;
+    return;
   }
 
-  elements.sessionAnswer.hidden = false;
+  for (const message of state.chatMessages) {
+    const node = document.createElement("article");
+    node.className = `chat-message ${message.role}${message.pending ? " pending" : ""}`;
+    const content = document.createElement("div");
+    content.className = "chat-message-content";
+    content.textContent = message.content;
+    node.append(content);
+
+    if (message.sources?.length) {
+      const sources = document.createElement("div");
+      sources.className = "chat-sources";
+      for (const source of message.sources) {
+        const button = document.createElement("button");
+        button.className = "source-chip";
+        button.type = "button";
+        button.textContent = source.title || "Untitled session";
+        button.title = `Open ${source.title || "session"}`;
+        button.addEventListener("click", () => {
+          loadSession(source.id)
+            .then(() => setActiveView("session"))
+            .catch((error) => setStatus(error.message));
+        });
+        sources.append(button);
+      }
+      node.append(sources);
+    }
+
+    elements.chatThread.append(node);
+  }
+
+  window.requestAnimationFrame(() => {
+    elements.chatThread.scrollTop = elements.chatThread.scrollHeight;
+  });
 }
 
 async function askSavedSessions() {
@@ -510,7 +560,10 @@ async function askSavedSessions() {
 
   setStatus("Asking local AI about saved notes...");
   elements.askSessionsButton.disabled = true;
-  elements.sessionAnswer.hidden = true;
+  state.chatMessages.push({ role: "user", content: question });
+  state.chatMessages.push({ role: "assistant", content: "Thinking...", pending: true });
+  elements.sessionQuestionInput.value = "";
+  renderChat();
 
   try {
     saveSettings();
@@ -524,9 +577,19 @@ async function askSavedSessions() {
         sessionId: scope === "current" ? state.activeSessionId : "",
       },
     });
-    renderSessionAnswer(data);
+    state.chatMessages[state.chatMessages.length - 1] = {
+      role: "assistant",
+      content: data.answer || "No answer was returned.",
+      sources: data.sources || [],
+    };
+    renderChat();
     setStatus("Local AI answer ready.");
   } catch (error) {
+    state.chatMessages[state.chatMessages.length - 1] = {
+      role: "assistant",
+      content: `Could not answer: ${error.message}`,
+    };
+    renderChat();
     setStatus(error.message);
   } finally {
     elements.askSessionsButton.disabled = false;
@@ -1190,12 +1253,29 @@ function bindEvents() {
     window.granolieDesktop.showEditMenu();
   });
 
-  elements.newSessionButton.addEventListener("click", createSession);
+  elements.newSessionButton.addEventListener("click", () => {
+    createSession()
+      .then(() => setActiveView("session"))
+      .catch((error) => setStatus(error.message));
+  });
   elements.deleteSessionButton.addEventListener("click", () => {
     deleteActiveSession().catch((error) => setStatus(error.message));
   });
   elements.exportButton.addEventListener("click", exportMarkdown);
-  elements.askSessionsButton.addEventListener("click", askSavedSessions);
+  elements.chatComposer.addEventListener("submit", (event) => {
+    event.preventDefault();
+    askSavedSessions();
+  });
+  elements.sessionQuestionInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) {
+      return;
+    }
+
+    event.preventDefault();
+    elements.chatComposer.requestSubmit();
+  });
+  elements.chatTabButton.addEventListener("click", () => setActiveView("chat"));
+  elements.sessionTabButton.addEventListener("click", () => setActiveView("session"));
   elements.titleInput.addEventListener("keydown", (event) => {
     saveTitleAndFocusSidebar(event).catch((error) => setStatus(error.message));
   });

@@ -22,33 +22,44 @@
           <input id="session-search" type="search" placeholder="Title or summary">
         </label>
 
-        <details class="ask-sessions-panel" open>
-          <summary>Ask saved notes</summary>
-          <div class="ask-sessions-content">
-            <label class="search-field" for="question-scope-select">
-              <span>Search</span>
-              <select id="question-scope-select">
-                <option value="all">All saved notes</option>
-                <option value="current">Current note</option>
-              </select>
-            </label>
-            <textarea id="session-question-input" rows="3" placeholder="Ask a question about your saved meetings."></textarea>
-            <button class="primary-button" id="ask-sessions-button" type="button">Ask local AI</button>
-            <div id="session-answer" class="session-answer" hidden>
-              <div id="session-answer-text"></div>
-              <div id="session-answer-sources" class="session-answer-sources"></div>
-            </div>
-          </div>
-        </details>
-
         <div class="session-list" id="session-list"></div>
       </aside>
 
       <main class="workspace">
+        <header class="app-toolbar">
+          <div class="app-context">
+            <span class="app-context-name">Granolie</span>
+            <p id="status-text" class="status-text">Ready.</p>
+          </div>
+          <div class="view-tabs" role="tablist" aria-label="Workspace view">
+            <button class="view-tab active" id="chat-tab-button" type="button" role="tab" aria-selected="true">Ask Granolie</button>
+            <button class="view-tab" id="session-tab-button" type="button" role="tab" aria-selected="false">Session</button>
+          </div>
+        </header>
+
+        <section id="chat-view" class="chat-view">
+          <div id="chat-thread" class="chat-thread" aria-live="polite">
+            <div id="chat-empty-state" class="chat-empty-state">
+              <h2>Ask Granolie</h2>
+              <p>Ask about decisions, people, topics, blockers, or anything across your saved sessions.</p>
+            </div>
+          </div>
+          <form id="chat-composer" class="chat-composer">
+            <div class="chat-composer-inner">
+              <select id="question-scope-select" class="chat-scope-select" aria-label="Question scope">
+                <option value="all">All sessions</option>
+                <option value="current">Current session</option>
+              </select>
+              <textarea id="session-question-input" rows="1" placeholder="Message Granolie"></textarea>
+              <button class="primary-button chat-send-button" id="ask-sessions-button" type="submit">Ask</button>
+            </div>
+          </form>
+        </section>
+
+        <div id="session-view" class="session-view" hidden>
         <header class="workspace-header">
           <div class="header-copy">
             <input id="title-input" class="title-input" type="text" placeholder="Untitled session" maxlength="120">
-            <p id="status-text" class="status-text">Ready.</p>
           </div>
 
           <div class="header-actions">
@@ -228,6 +239,7 @@
             </label>
           </section>
         </details>
+        </div>
       </main>
     </div>
 
