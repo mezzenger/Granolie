@@ -86,15 +86,32 @@ textarea {
   display: grid;
   grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 220ms ease;
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
+  overflow: hidden;
   padding: 1.5rem;
   border-right: 1px solid var(--border);
   background: #0e1216;
+  opacity: 1;
+  transition: border-color 220ms ease, opacity 160ms ease, padding 220ms ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.app-shell.sidebar-collapsed .sidebar {
+  padding-right: 0;
+  padding-left: 0;
+  border-right-color: transparent;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .sidebar-header {
@@ -204,7 +221,24 @@ textarea {
 }
 
 .app-context {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 0.7rem;
+  align-items: center;
   min-width: 0;
+}
+
+.sidebar-toggle {
+  grid-row: 1 / span 3;
+  min-height: 34px;
+  padding: 0.36rem 0.58rem;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.sidebar-toggle:hover {
+  color: var(--text);
 }
 
 .app-context-name {
@@ -909,6 +943,10 @@ textarea {
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
+  }
+
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 0 1fr;
   }
 
   .sidebar {

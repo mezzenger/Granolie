@@ -1,6 +1,7 @@
 const elements = {
   apiKeyInput: document.querySelector("#api-key-input"),
   appVersion: document.querySelector("#app-version"),
+  appShell: document.querySelector("#app-shell"),
   askSessionsButton: document.querySelector("#ask-sessions-button"),
   audioFileInput: document.querySelector("#audio-file-input"),
   chatComposer: document.querySelector("#chat-composer"),
@@ -42,6 +43,7 @@ const elements = {
   sessionSearch: document.querySelector("#session-search"),
   sessionTabButton: document.querySelector("#session-tab-button"),
   sessionView: document.querySelector("#session-view"),
+  sidebarToggle: document.querySelector("#sidebar-toggle"),
   questionScopeSelect: document.querySelector("#question-scope-select"),
   statusText: document.querySelector("#status-text"),
   stopButton: document.querySelector("#stop-button"),
@@ -63,6 +65,7 @@ const elements = {
 };
 
 const SETTINGS_KEY = "granolie-settings";
+const SIDEBAR_COLLAPSED_KEY = "granolie-sidebar-collapsed";
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 const OLLAMA_BASE_URL = "http://127.0.0.1:11434";
 const OPENAI_NOTES_MODEL = "gpt-4.1-mini";
@@ -95,6 +98,7 @@ const state = {
   saveTimerId: null,
   searchQuery: "",
   sessions: [],
+  sidebarCollapsed: localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true",
   settings: loadSettings(),
   ollamaModels: [],
   processingTasks: [],
@@ -330,6 +334,14 @@ async function refreshOllamaModels(options = {}) {
 
 function setStatus(message) {
   elements.statusText.textContent = message;
+}
+
+function setSidebarCollapsed(collapsed) {
+  state.sidebarCollapsed = collapsed;
+  elements.appShell.classList.toggle("sidebar-collapsed", collapsed);
+  elements.sidebarToggle.textContent = collapsed ? "Show notes" : "Hide notes";
+  elements.sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+  localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
 }
 
 function startProcessing(label) {
@@ -1314,6 +1326,9 @@ function bindEvents() {
   });
   elements.chatTabButton.addEventListener("click", () => setActiveView("chat"));
   elements.sessionTabButton.addEventListener("click", () => setActiveView("session"));
+  elements.sidebarToggle.addEventListener("click", () => {
+    setSidebarCollapsed(!state.sidebarCollapsed);
+  });
   elements.titleInput.addEventListener("keydown", (event) => {
     saveTitleAndFocusSidebar(event).catch((error) => setStatus(error.message));
   });
@@ -1412,6 +1427,7 @@ function bindEvents() {
 async function init() {
   try {
     await loadAppInfo();
+    setSidebarCollapsed(state.sidebarCollapsed);
     applySettings();
     bindEvents();
     updateWordCounts();
