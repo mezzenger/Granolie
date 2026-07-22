@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Granolie</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div>
+            <p class="eyebrow">Linux-first notes</p>
+            <h1 class="app-title">Granolie <span id="app-version" class="app-version"></span></h1>
+          </div>
+          <button class="primary-button" id="new-session-button" type="button">New note</button>
+        </div>
+
+        <label class="search-field" for="session-search">
+          <span>Search notes</span>
+          <input id="session-search" type="search" placeholder="Title or summary">
+        </label>
+
+        <details class="ask-sessions-panel" open>
+          <summary>Ask saved notes</summary>
+          <div class="ask-sessions-content">
+            <label class="search-field" for="question-scope-select">
+              <span>Search</span>
+              <select id="question-scope-select">
+                <option value="all">All saved notes</option>
+                <option value="current">Current note</option>
+              </select>
+            </label>
+            <textarea id="session-question-input" rows="3" placeholder="Ask a question about your saved meetings."></textarea>
+            <button class="primary-button" id="ask-sessions-button" type="button">Ask local AI</button>
+            <div id="session-answer" class="session-answer" hidden>
+              <div id="session-answer-text"></div>
+              <div id="session-answer-sources" class="session-answer-sources"></div>
+            </div>
+          </div>
+        </details>
+
+        <div class="session-list" id="session-list"></div>
+      </aside>
+
+      <main class="workspace">
+        <header class="workspace-header">
+          <div class="header-copy">
+            <input id="title-input" class="title-input" type="text" placeholder="Untitled session" maxlength="120">
+            <p id="status-text" class="status-text">Ready.</p>
+          </div>
+
+          <div class="header-actions">
+            <button class="ghost-button" id="delete-session-button" type="button">Delete</button>
+            <button class="ghost-button" id="export-button" type="button">Export markdown</button>
+          </div>
+        </header>
+
+        <section class="control-band">
+          <div class="capture-cluster">
+            <div class="control-block">
+              <p class="section-label">Audio capture</p>
+              <div class="capture-sources" role="group" aria-label="Audio sources">
+                <span class="capture-sources-label">Capture</span>
+                <label class="source-toggle" for="microphone-source-input">
+                  <input id="microphone-source-input" type="checkbox" checked>
+                  <span>Microphone</span>
+                </label>
+                <label class="source-toggle" for="system-audio-source-input">
+                  <input id="system-audio-source-input" type="checkbox">
+                  <span>Computer audio</span>
+                </label>
+              </div>
+              <div class="button-row">
+                <button class="record-button" id="record-button" type="button">Start recording</button>
+                <button class="ghost-button" id="stop-button" type="button" disabled>Stop</button>
+                <label class="file-button" for="audio-file-input">Import audio</label>
+                <input id="audio-file-input" type="file" accept="audio/*" hidden>
+              </div>
+              <div id="recording-monitor" class="recording-monitor" hidden aria-live="polite">
+                <span class="recording-monitor-label">Mic level</span>
+                <div class="vu-meter" role="meter" aria-label="Microphone input level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <div id="vu-meter-level" class="vu-meter-level"></div>
+                </div>
+                <span id="vu-meter-status" class="recording-monitor-status">Listening</span>
+              </div>
+              <p id="recording-meta" class="helper-text">No audio loaded.</p>
+            </div>
+
+            <div class="control-block">
+              <p class="section-label">Process</p>
+              <div class="button-row">
+                <button class="primary-button" id="transcribe-button" type="button">Transcribe audio</button>
+                <button class="primary-button" id="generate-notes-button" type="button">Generate notes</button>
+              </div>
+              <p class="helper-text" id="transcribe-mode-helper">Cloud transcription uses the API URL and model below.</p>
+              <p class="helper-text" id="notes-mode-helper">Audio stays in the current browser session. Notes and transcripts are stored locally on disk.</p>
+            </div>
+          </div>
+
+          <details class="settings-disclosure">
+            <summary>AI settings</summary>
+            <div class="settings-content">
+              <div class="settings-shortcuts">
+                <button class="ghost-button compact-button" id="phi4-mini-preset-button" type="button">Use local phi4-mini</button>
+                <button class="ghost-button compact-button" id="faster-whisper-preset-button" type="button">Use local faster-whisper</button>
+              </div>
+              <div class="config-grid">
+            <label class="config-field" for="template-select">
+              <span>Template</span>
+              <select id="template-select">
+                <option value="general">General meeting</option>
+                <option value="standup">Standup</option>
+                <option value="one_on_one">1:1</option>
+                <option value="sales">Sales call</option>
+                <option value="interview">Interview</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+
+            <label class="config-field" for="transcribe-provider-select">
+              <span>Transcription provider</span>
+              <select id="transcribe-provider-select">
+                <option value="openai">OpenAI-compatible</option>
+                <option value="faster_whisper" selected>Local faster-whisper</option>
+              </select>
+            </label>
+
+            <label class="config-field" for="transcribe-model-input">
+              <span>Transcription model</span>
+              <input id="transcribe-model-input" type="text" value="base">
+            </label>
+
+            <label class="config-field" for="transcribe-base-url-input">
+              <span>Transcription API URL</span>
+              <input id="transcribe-base-url-input" type="url" value="https://api.openai.com/v1">
+            </label>
+
+            <label class="config-field" for="notes-provider-select">
+              <span>Notes provider</span>
+              <select id="notes-provider-select">
+                <option value="openai">OpenAI-compatible</option>
+                <option value="ollama" selected>Ollama local</option>
+              </select>
+            </label>
+
+            <label class="config-field" for="notes-model-input">
+              <span>Notes model</span>
+              <input id="notes-model-input" type="text" value="phi4-mini" list="ollama-models">
+            </label>
+
+            <label class="config-field" for="notes-base-url-input">
+              <span>Notes API URL</span>
+              <input id="notes-base-url-input" type="url" value="http://127.0.0.1:11434">
+            </label>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section class="editor-band">
+          <div class="editor-pane">
+            <div class="pane-header">
+              <h2>Transcript</h2>
+              <div class="pane-actions">
+                <span class="pane-meta" id="transcript-count">0 words</span>
+                <details class="pane-menu">
+                  <summary>Actions</summary>
+                  <div class="pane-menu-content">
+                    <button class="ghost-button compact-button" id="import-transcript-button" type="button">Import text file</button>
+                    <input id="transcript-file-input" type="file" accept=".txt,.md,.markdown,.csv,.tsv,.log,.json,text/plain,text/markdown,text/csv,text/tab-separated-values,application/json" hidden>
+                    <button class="ghost-button compact-button" id="copy-transcript-button" type="button">Copy transcript</button>
+                    <select id="transcript-export-format" class="compact-select" aria-label="Transcript export format">
+                      <option value="markdown">Markdown</option>
+                      <option value="text">Plain text</option>
+                      <option value="html">HTML for Writer</option>
+                    </select>
+                    <button class="ghost-button compact-button" id="export-transcript-button" type="button">Export transcript</button>
+                    <button class="ghost-button compact-button" id="open-transcript-writer-button" type="button">Open in Writer</button>
+                  </div>
+                </details>
+              </div>
+            </div>
+            <textarea id="transcript-input" spellcheck="false" placeholder="Transcript appears here after transcription, or paste text manually."></textarea>
+          </div>
+
+          <div class="editor-pane">
+            <div class="pane-header">
+              <h2>AI notes</h2>
+              <div class="pane-actions">
+                <span class="pane-meta" id="notes-count">0 words</span>
+                <details class="pane-menu">
+                  <summary>Actions</summary>
+                  <div class="pane-menu-content">
+                    <button class="ghost-button compact-button" id="copy-notes-button" type="button">Copy notes</button>
+                    <select id="notes-export-format" class="compact-select" aria-label="Notes export format">
+                      <option value="markdown">Markdown</option>
+                      <option value="text">Plain text</option>
+                      <option value="html">HTML for Writer</option>
+                    </select>
+                    <button class="ghost-button compact-button" id="export-notes-button" type="button">Export notes</button>
+                    <button class="ghost-button compact-button" id="open-writer-button" type="button">Open in Writer</button>
+                  </div>
+                </details>
+              </div>
+            </div>
+            <textarea id="notes-input" spellcheck="false" placeholder="Generated notes appear here. You can edit them freely."></textarea>
+          </div>
+        </section>
+
+        <details class="details-disclosure">
+          <summary>Meeting details</summary>
+          <section class="details-band">
+            <label class="detail-field" for="context-input">
+            <span>Meeting context</span>
+            <textarea id="context-input" placeholder="Company context, attendees, agenda, or other details that improve note quality."></textarea>
+            </label>
+
+            <label class="detail-field" for="custom-prompt-input">
+            <span>Custom AI instructions</span>
+            <textarea id="custom-prompt-input" placeholder="Optional. Example: emphasize risks, decisions, and owners."></textarea>
+            </label>
+
+            <label class="detail-field" for="api-key-input">
+            <span>Cloud API key</span>
+            <input id="api-key-input" type="password" placeholder="Used for transcription and OpenAI-compatible notes">
+            </label>
+          </section>
+        </details>
+      </main>
+    </div>
+
+    <template id="session-item-template">
+      <button class="session-item" type="button">
+        <span class="session-item-title"></span>
+        <span class="session-item-summary"></span>
+        <span class="session-item-meta"></span>
+      </button>
+    </template>
+
+    <datalist id="ollama-models"></datalist>
+
+    <script src="/app.js" defer></script>
+  </body>
+  </html>

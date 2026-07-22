@@ -1,0 +1,89 @@
+{
+  "name": "granolie",
+  "version": "0.1.0",
+  "description": "Linux-first local AI meeting notes app with cloud or local transcription and structured summaries",
+  "author": {
+    "name": "Granolie Project",
+    "email": "granolie.support@gmail.com"
+  },
+  "desktopName": "granolie.desktop",
+  "homepage": "https://github.com/mezzenger/Granolie",
+  "keywords": [
+    "notes",
+    "meetings",
+    "transcription",
+    "ai",
+    "productivity"
+  ],
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "commonjs",
+  "main": "desktop/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mezzenger/Granolie.git"
+  },
+  "granolie": {
+    "buildRevision": 20
+  },
+  "scripts": {
+    "start": "electron .",
+    "start:unsafe": "electron --no-sandbox --disable-gpu-sandbox .",
+    "start:web": "node server.js",
+    "package": "electron-builder --dir",
+    "dist:appimage": "electron-builder --linux AppImage",
+    "dist:deb": "node scripts/build-deb.js",
+    "dist:linux": "node scripts/dist-linux.js",
+    "test": "node --test"
+  },
+  "build": {
+    "appId": "io.github.mezzenger.granolie",
+    "productName": "Granolie",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "asar": true,
+    "extraResources": [
+      {
+        "from": "scripts/local-ai",
+        "to": "local-ai",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "scripts/lo-uno",
+        "to": "lo-uno",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "files": [
+      "build/icons/**/*",
+      "desktop/**/*",
+      "public/**/*",
+      "server.js",
+      "package.json"
+    ],
+    "linux": {
+      "icon": "build/icons",
+      "category": "Office",
+      "executableName": "granolie",
+      "syncDesktopName": true,
+      "synopsis": "Local AI meeting notes for Linux",
+      "description": "Granolie records or imports meeting audio, transcribes it through either cloud APIs or local faster-whisper, and turns transcripts into editable structured notes stored locally on Linux.",
+      "vendor": "Granolie Project",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    },
+    "deb": {
+      "maintainer": "Granolie Project <granolie.support@gmail.com>",
+      "priority": "optional"
+    }
+  },
+  "devDependencies": {
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3"
+  }
+}

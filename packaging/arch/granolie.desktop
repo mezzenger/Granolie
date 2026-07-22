@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Granolie
+Comment=Local AI meeting notes for Linux
+Exec=granolie %U
+Icon=granolie
+Terminal=false
+Categories=Office;
+Keywords=notes;meetings;transcription;ai;productivity;
+StartupWMClass=Granolie

@@ -1,0 +1,6 @@
+dist/
+node_modules/
+out/
+pkg/
+*.pkg.tar.zst
+data/sessions/*.json
