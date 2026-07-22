@@ -6,6 +6,7 @@ const {
   buildNotePrompt,
   buildSessionQuestionPrompt,
   deriveTitle,
+  isGreetingQuestion,
   normalizeAiProvider,
   normalizeBaseUrl,
   normalizeTranscriptionProvider,
@@ -74,6 +75,12 @@ test("buildSessionQuestionPrompt names sources and requires citations", () => {
 
   assert.match(prompt, /SOURCE: Planning/);
   assert.match(prompt, /\[Source: session title\]/);
+});
+
+test("isGreetingQuestion identifies simple greetings without searching sessions", () => {
+  assert.equal(isGreetingQuestion("hello"), true);
+  assert.equal(isGreetingQuestion("Good morning!"), true);
+  assert.equal(isGreetingQuestion("What did we decide?"), false);
 });
 
 function createMockRequest(url) {

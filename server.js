@@ -7,6 +7,8 @@ const { spawn } = require("node:child_process");
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.PORT || 3000);
+const SESSION_QUESTION_CONTEXT_CHAR_LIMIT = 9000;
+const OLLAMA_QUESTION_TIMEOUT_MS = 90000;
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, "public");
 const PACKAGE_INFO = require(path.join(ROOT, "package.json"));
@@ -540,6 +542,10 @@ function questionTerms(question) {
   return [...new Set((question.toLowerCase().match(/[a-z0-9]{3,}/g) || []))];
 }
 
+function isGreetingQuestion(question) {
+  return /^(?:hi|hello|hey|good (?:morning|afternoon|evening))(?:[!. ]*)$/i.test(question.trim());
+}
+
 function sessionQuestionScore(session, terms) {
   const title = String(session.title || "").toLowerCase();
   const notes = String(session.notes || "").toLowerCase();
@@ -567,7 +573,7 @@ function buildSessionQuestionPrompt({ question, sessions }) {
   return `Question:\n${question.trim()}\n\nSaved session sources:\n${sources}\n\nAnswer the question using only these sources. Cite every factual claim with [Source: session title]. If the sources do not answer the question, say so plainly.`;
 }
 
-function selectQuestionSessions(sessions, question, maxCharacters = 30000) {
+function selectQuestionSessions(sessions, question, maxCharacters = SESSION_QUESTION_CONTEXT_CHAR_LIMIT) {
   const terms = questionTerms(question);
   const ranked = [...sessions].sort((left, right) => {
     const scoreDifference = sessionQuestionScore(right, terms) - sessionQuestionScore(left, terms);
@@ -614,6 +620,13 @@ async function callOllamaSessionQuestion(payload) {
     throw error;
   }
 
+  if (isGreetingQuestion(question)) {
+    return {
+      answer: "Hello. Ask me about decisions, people, topics, blockers, or anything in your saved sessions.",
+      sources: [],
+    };
+  }
+
   let sessions;
   if (scope === "current") {
     if (!payload.sessionId) {
@@ -634,10 +647,13 @@ async function callOllamaSessionQuestion(payload) {
   }
 
   let response;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OLLAMA_QUESTION_TIMEOUT_MS);
   try {
     response = await fetch(`${normalizeBaseUrl(baseUrl, "http://127.0.0.1:11434")}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         model,
         stream: false,
@@ -654,10 +670,17 @@ async function callOllamaSessionQuestion(payload) {
       }),
     });
   } catch (cause) {
-    const error = new Error("Could not reach Ollama. Make sure Ollama is running locally and the base URL is correct.");
-    error.statusCode = 502;
+    const timedOut = controller.signal.aborted;
+    const error = new Error(
+      timedOut
+        ? "Local AI did not respond within 90 seconds. Try asking about a current session or use a smaller local model."
+        : "Could not reach Ollama. Make sure Ollama is running locally and the base URL is correct."
+    );
+    error.statusCode = timedOut ? 504 : 502;
     error.cause = cause;
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const data = await response.json().catch(() => ({}));
@@ -1127,6 +1150,7 @@ module.exports = {
   deriveTitle,
   getAppInfo,
   getDataDir,
+  isGreetingQuestion,
   listOllamaModels,
   selectQuestionSessions,
   normalizeAiProvider,
