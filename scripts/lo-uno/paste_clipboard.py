@@ -51,6 +51,7 @@ def main():
         subprocess.Popen(
             [
                 soffice,
+                "--writer",
                 "--nologo",
                 "--norestore",
                 f"--accept={accept}",
@@ -65,7 +66,9 @@ def main():
     context = connect_to_writer(port)
     service_manager = context.ServiceManager
     desktop = service_manager.createInstanceWithContext("com.sun.star.frame.Desktop", context)
-    document = desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())
+    document = desktop.getCurrentComponent()
+    if not hasattr(document, "Text"):
+        document = desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())
     frame = document.getCurrentController().getFrame()
     frame.activate()
     frame.getContainerWindow().setFocus()

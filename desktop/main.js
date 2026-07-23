@@ -6,7 +6,7 @@ let mainWindow = null;
 let serverHandle = null;
 let isQuitting = false;
 
-const ALLOWED_PERMISSIONS = new Set(["clipboard-sanitized-write", "fullscreen", "media"]);
+const ALLOWED_PERMISSIONS = new Set(["clipboard-sanitized-write", "display-capture", "fullscreen", "media"]);
 const { cleanupEmptySessions, getAppInfo, startServer } = require(path.join(__dirname, "..", "server"));
 
 function getWriterUnoHelperPath() {
@@ -87,7 +87,7 @@ function configurePermissions() {
     } catch {
       callback({});
     }
-  });
+  }, { useSystemPicker: false });
 }
 
 async function startBackend() {

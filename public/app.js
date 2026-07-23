@@ -15,6 +15,7 @@ const elements = {
   copyTranscriptButton: document.querySelector("#copy-transcript-button"),
   customPromptInput: document.querySelector("#custom-prompt-input"),
   deleteSessionButton: document.querySelector("#delete-session-button"),
+  deleteAudioButton: document.querySelector("#delete-audio-button"),
   exportButton: document.querySelector("#export-button"),
   exportNotesButton: document.querySelector("#export-notes-button"),
   exportTranscriptButton: document.querySelector("#export-transcript-button"),
@@ -692,7 +693,6 @@ async function saveActiveSession() {
       body: sessionPayloadFromForm(),
     });
 
-    applySession(data.session, { preserveAudio: true });
     const index = state.sessions.findIndex((item) => item.id === data.session.id);
     const summary = {
       id: data.session.id,
@@ -775,6 +775,7 @@ function updateRecordingState() {
   elements.recordButton.classList.toggle("recording", state.isRecording);
   elements.recordButton.textContent = state.isRecording ? "Recording..." : "Start recording";
   elements.stopButton.disabled = !state.isRecording;
+  elements.deleteAudioButton.disabled = state.isRecording || !state.audioBlob;
   elements.transcribeButton.disabled = state.isRecording;
   elements.microphoneSourceInput.disabled = state.isRecording;
   elements.systemAudioSourceInput.disabled = state.isRecording;
@@ -947,6 +948,16 @@ async function startRecording() {
     stopAudioLevelMeter();
     setStatus(error.message || "Could not start microphone capture.");
   }
+}
+
+function deleteAudio() {
+  if (state.isRecording || !state.audioBlob) {
+    return;
+  }
+
+  clearAudioState();
+  updateRecordingState();
+  setStatus("Audio removed.");
 }
 
 function stopRecording() {
@@ -1396,6 +1407,7 @@ function bindEvents() {
   elements.fasterWhisperPresetButton.addEventListener("click", applyFasterWhisperPreset);
   elements.recordButton.addEventListener("click", startRecording);
   elements.stopButton.addEventListener("click", stopRecording);
+  elements.deleteAudioButton.addEventListener("click", deleteAudio);
   [elements.microphoneSourceInput, elements.systemAudioSourceInput].forEach((element) => {
     element.addEventListener("change", () => {
       saveSettings();
