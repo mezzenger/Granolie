@@ -111,6 +111,7 @@ async function exchangeGoogleCode(code, pending) {
   const body = new URLSearchParams({
     code,
     client_id: pending.clientId,
+    client_secret: pending.clientSecret,
     redirect_uri: GOOGLE_REDIRECT_URI,
     grant_type: "authorization_code",
     code_verifier: pending.verifier,
@@ -118,12 +119,17 @@ async function exchangeGoogleCode(code, pending) {
   const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", body });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error_description || data.error || "Google authorization failed.");
-  return writeGoogleToken({ ...data, clientId: pending.clientId, expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000 });
+  return writeGoogleToken({ ...data, clientId: pending.clientId, clientSecret: pending.clientSecret, expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000 });
 }
 
-function beginGoogleAuth(clientId) {
+function beginGoogleAuth(clientId, clientSecret) {
   if (!clientId.endsWith(".apps.googleusercontent.com")) {
     const error = new Error("Enter a valid Google OAuth client ID.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!clientSecret) {
+    const error = new Error("Enter the Google OAuth client secret from your Desktop OAuth JSON.");
     error.statusCode = 400;
     throw error;
   }
@@ -132,7 +138,7 @@ function beginGoogleAuth(clientId) {
   }
   const state = crypto.randomBytes(24).toString("base64url");
   const verifier = crypto.randomBytes(48).toString("base64url");
-  const pending = { clientId, state, verifier, url: googleAuthUrl(clientId, state, verifier), server: null };
+  const pending = { clientId, clientSecret, state, verifier, url: googleAuthUrl(clientId, state, verifier), server: null };
   pendingGoogleAuth = pending;
   pending.server = http.createServer(async (req, res) => {
     const url = new URL(req.url, GOOGLE_REDIRECT_URI);
@@ -162,7 +168,7 @@ async function googleAccessToken() {
     throw error;
   }
   if (token.expiresAt > Date.now() + 60000) return token.access_token;
-  const body = new URLSearchParams({ client_id: token.clientId, refresh_token: token.refresh_token, grant_type: "refresh_token" });
+  const body = new URLSearchParams({ client_id: token.clientId, client_secret: token.clientSecret, refresh_token: token.refresh_token, grant_type: "refresh_token" });
   const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", body });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error_description || "Google token refresh failed.");
@@ -1259,7 +1265,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && pathname === "/api/google-calendar/connect") {
     const body = await readJsonBody(req);
-    sendJson(res, 200, beginGoogleAuth(String(body.clientId || "").trim()));
+    sendJson(res, 200, beginGoogleAuth(String(body.clientId || "").trim(), String(body.clientSecret || "").trim()));
     return;
   }
 

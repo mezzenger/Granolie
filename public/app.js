@@ -642,7 +642,9 @@ async function syncGoogleCalendarStatus() {
 
 async function connectGoogleCalendar() {
   const clientId = "408498375815-r0lb0h7voml1ei43gt3nk47p5j1l5dt2.apps.googleusercontent.com";
-  const data = await api("/api/google-calendar/connect", { method: "POST", body: { clientId } });
+  const clientSecret = window.prompt("Enter the Google OAuth client secret from your Desktop OAuth JSON:", "");
+  if (!clientSecret?.trim()) return;
+  const data = await api("/api/google-calendar/connect", { method: "POST", body: { clientId, clientSecret } });
   if (window.granolieDesktop?.openExternal) await window.granolieDesktop.openExternal(data.url);
   else window.open(data.url, "_blank", "noopener");
   setStatus("Complete Google Calendar access in your browser, then return here and sync.");
