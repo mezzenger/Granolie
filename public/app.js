@@ -19,8 +19,11 @@ const elements = {
   calendarFileInput: document.querySelector("#calendar-file-input"),
   calendarGrid: document.querySelector("#calendar-grid"),
   calendarHeading: document.querySelector("#calendar-heading"),
+  calendarNextButton: document.querySelector("#calendar-next-button"),
+  calendarPreviousButton: document.querySelector("#calendar-previous-button"),
   calendarTabButton: document.querySelector("#calendar-tab-button"),
   calendarUpcoming: document.querySelector("#calendar-upcoming"),
+  calendarViewMode: document.querySelector("#calendar-view-mode"),
   calendarView: document.querySelector("#calendar-view"),
   closeCalendarDialogButton: document.querySelector("#close-calendar-dialog-button"),
   closeGoogleCalendarDialogButton: document.querySelector("#close-google-calendar-dialog-button"),
@@ -110,6 +113,7 @@ const state = {
   audioLevelSources: [],
   captureStreams: [],
   calendarEvents: [],
+  calendarAnchor: new Date(),
   audioLevelAnalyser: null,
   chatMessages: [],
   isApplyingSession: false,
@@ -577,19 +581,38 @@ function startOfWeek(date = new Date()) {
 }
 
 function renderCalendar() {
-  const weekStart = startOfWeek();
+  const mode = elements.calendarViewMode.value;
+  const anchor = state.calendarAnchor;
+  const weekStart = startOfWeek(anchor);
   const formatter = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric" });
-  const days = Array.from({ length: 7 }, (_, index) => {
+  let days = Array.from({ length: 7 }, (_, index) => {
     const day = new Date(weekStart);
     day.setDate(day.getDate() + index);
     return day;
   });
-  elements.calendarHeading.textContent = `${formatter.format(days[0])} - ${formatter.format(days[6])}`;
+  if (mode === "day") days = [new Date(anchor)];
+  if (mode === "month") {
+    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    first.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+    days = Array.from({ length: 42 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + index));
+  }
+  if (mode === "upcoming") days = [];
+  elements.calendarHeading.textContent = mode === "month" ? new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(anchor) : mode === "day" ? formatter.format(anchor) : mode === "upcoming" ? "Upcoming events" : `${formatter.format(days[0])} - ${formatter.format(days[6])}`;
   elements.calendarGrid.innerHTML = "";
+  elements.calendarGrid.classList.toggle("calendar-month", mode === "month");
+  elements.calendarGrid.classList.toggle("calendar-list", mode === "upcoming");
   const today = new Date().toDateString();
   const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
   const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
+  if (mode === "upcoming") {
+    for (const event of state.calendarEvents.filter((item) => new Date(item.end) >= new Date())) {
+      const node = document.createElement("article");
+      node.className = "calendar-event";
+      node.textContent = `${new Date(event.start).toLocaleString()} - ${event.title}${event.location ? ` (${event.location})` : ""}`;
+      elements.calendarGrid.append(node);
+    }
+  }
   for (const day of days) {
     const column = document.createElement("section");
     column.className = `calendar-day${day.toDateString() === today ? " today" : ""}`;
@@ -1562,6 +1585,16 @@ function bindEvents() {
     Promise.all([refreshCalendar(), syncGoogleCalendarStatus()]).catch((error) => setStatus(error.message));
     setActiveView("calendar");
   });
+  const moveCalendar = (direction) => {
+    const mode = elements.calendarViewMode.value;
+    if (mode === "month") state.calendarAnchor.setMonth(state.calendarAnchor.getMonth() + direction);
+    else if (mode === "week") state.calendarAnchor.setDate(state.calendarAnchor.getDate() + direction * 7);
+    else if (mode === "day") state.calendarAnchor.setDate(state.calendarAnchor.getDate() + direction);
+    renderCalendar();
+  };
+  elements.calendarViewMode.addEventListener("change", renderCalendar);
+  elements.calendarPreviousButton.addEventListener("click", () => moveCalendar(-1));
+  elements.calendarNextButton.addEventListener("click", () => moveCalendar(1));
   elements.googleCalendarButton.addEventListener("click", () => {
     elements.googleCalendarSecret.value = "";
     elements.googleCalendarDialog.showModal();

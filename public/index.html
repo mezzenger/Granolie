@@ -73,6 +73,14 @@
               <h2 id="calendar-heading">This week</h2>
             </div>
             <div class="header-actions">
+              <button class="ghost-button compact-button" id="calendar-previous-button" type="button">Previous</button>
+              <select id="calendar-view-mode" class="compact-select" aria-label="Calendar view">
+                <option value="month">Month</option>
+                <option value="week" selected>Week</option>
+                <option value="day">Day</option>
+                <option value="upcoming">Upcoming</option>
+              </select>
+              <button class="ghost-button compact-button" id="calendar-next-button" type="button">Next</button>
               <button class="ghost-button" id="google-calendar-button" type="button">Connect Google</button>
               <button class="ghost-button" id="sync-google-calendar-button" type="button" hidden>Sync Google</button>
               <label class="file-button compact-button" for="calendar-file-input">Import calendar</label>

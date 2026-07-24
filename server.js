@@ -148,7 +148,8 @@ function beginGoogleAuth(clientId, clientSecret) {
     }
     try {
       await exchangeGoogleCode(url.searchParams.get("code") || "", pending);
-      sendText(res, 200, "Granolie is connected to Google Calendar. You can close this tab.");
+      const count = await syncGoogleCalendar();
+      sendText(res, 200, `Granolie is connected and synced ${count} Google Calendar events. You can close this tab.`);
     } catch (error) {
       sendText(res, 500, `Granolie could not connect: ${error.message}`);
     } finally {
@@ -178,7 +179,18 @@ async function googleAccessToken() {
 
 async function syncGoogleCalendar() {
   const accessToken = await googleAccessToken();
-  const params = new URLSearchParams({ singleEvents: "true", orderBy: "startTime", timeMin: new Date().toISOString(), maxResults: "250" });
+  const now = new Date();
+  const timeMin = new Date(now);
+  timeMin.setDate(timeMin.getDate() - 90);
+  const timeMax = new Date(now);
+  timeMax.setDate(timeMax.getDate() + 365);
+  const params = new URLSearchParams({
+    singleEvents: "true",
+    orderBy: "startTime",
+    timeMin: timeMin.toISOString(),
+    timeMax: timeMax.toISOString(),
+    maxResults: "2500",
+  });
   const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, { headers: { Authorization: `Bearer ${accessToken}` } });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error?.message || "Google Calendar sync failed.");

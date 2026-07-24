@@ -520,6 +520,22 @@ textarea {
   border-right: 1px solid var(--border);
 }
 
+.calendar-grid.calendar-month {
+  grid-template-columns: repeat(7, minmax(100px, 1fr));
+}
+
+.calendar-grid.calendar-month .calendar-day {
+  min-height: 150px;
+}
+
+.calendar-grid.calendar-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
 .calendar-day {
   min-height: 430px;
   padding: 0.8rem;
