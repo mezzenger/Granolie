@@ -1044,8 +1044,8 @@ async function startRecording() {
     return;
   }
 
-  if ((includeMicrophone && !navigator.mediaDevices?.getUserMedia) || (includeSystemAudio && !navigator.mediaDevices?.getDisplayMedia)) {
-    setStatus("This browser does not expose the required audio capture APIs.");
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setStatus("This browser does not expose the required audio capture API.");
     return;
   }
 
@@ -1055,12 +1055,7 @@ async function startRecording() {
       state.captureStreams.push(await navigator.mediaDevices.getUserMedia({ audio: true }));
     }
     if (includeSystemAudio) {
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
-      if (!displayStream.getAudioTracks().length) {
-        displayStream.getTracks().forEach((track) => track.stop());
-        throw new Error("Computer audio was not available. Check PipeWire screen-share audio support and try again.");
-      }
-      state.captureStreams.push(displayStream);
+      state.captureStreams.push(await getComputerAudioStream());
     }
 
     state.mediaStream = createMixedAudioStream(state.captureStreams);
@@ -1096,6 +1091,26 @@ async function startRecording() {
     stopAudioLevelMeter();
     setStatus(error.message || "Could not start microphone capture.");
   }
+}
+
+async function getComputerAudioStream() {
+  // PipeWire exposes output-monitor sources as normal audio inputs, avoiding screen capture.
+  const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const inputs = await navigator.mediaDevices.enumerateDevices();
+  const monitor = inputs.find(
+    (device) =>
+      device.kind === "audioinput" &&
+      /monitor|loopback|system audio|output/i.test(device.label)
+  );
+  probe.getTracks().forEach((track) => track.stop());
+
+  if (!monitor) {
+    throw new Error(
+      "No PipeWire monitor source was found. Choose an output-monitor input in your system audio settings, then restart Granolie."
+    );
+  }
+
+  return navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: monitor.deviceId } } });
 }
 
 async function saveAudioWithSession() {
