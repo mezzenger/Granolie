@@ -100,6 +100,16 @@
               <button class="primary-button" type="submit">Save event</button>
             </form>
           </dialog>
+          <dialog id="google-calendar-dialog" class="calendar-dialog">
+            <form id="google-calendar-form" method="dialog">
+              <header>
+                <h2>Connect Google Calendar</h2>
+                <button class="ghost-button compact-button" value="cancel" type="button" id="close-google-calendar-dialog-button">Close</button>
+              </header>
+              <label class="detail-field" for="google-calendar-secret"><span>OAuth client secret</span><input id="google-calendar-secret" required type="password" autocomplete="off"></label>
+              <button class="primary-button" type="submit">Continue to Google</button>
+            </form>
+          </dialog>
         </section>
 
         <div id="session-view" class="session-view" hidden>

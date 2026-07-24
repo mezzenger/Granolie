@@ -23,6 +23,7 @@ const elements = {
   calendarUpcoming: document.querySelector("#calendar-upcoming"),
   calendarView: document.querySelector("#calendar-view"),
   closeCalendarDialogButton: document.querySelector("#close-calendar-dialog-button"),
+  closeGoogleCalendarDialogButton: document.querySelector("#close-google-calendar-dialog-button"),
   clearNotesButton: document.querySelector("#clear-notes-button"),
   contextInput: document.querySelector("#context-input"),
   copyNotesButton: document.querySelector("#copy-notes-button"),
@@ -36,6 +37,9 @@ const elements = {
   fasterWhisperPresetButton: document.querySelector("#faster-whisper-preset-button"),
   generateNotesButton: document.querySelector("#generate-notes-button"),
   googleCalendarButton: document.querySelector("#google-calendar-button"),
+  googleCalendarDialog: document.querySelector("#google-calendar-dialog"),
+  googleCalendarForm: document.querySelector("#google-calendar-form"),
+  googleCalendarSecret: document.querySelector("#google-calendar-secret"),
   importTranscriptButton: document.querySelector("#import-transcript-button"),
   newSessionButton: document.querySelector("#new-session-button"),
   notesBaseUrlInput: document.querySelector("#notes-base-url-input"),
@@ -640,10 +644,8 @@ async function syncGoogleCalendarStatus() {
   elements.syncGoogleCalendarButton.hidden = !data.connected;
 }
 
-async function connectGoogleCalendar() {
+async function connectGoogleCalendar(clientSecret) {
   const clientId = "408498375815-r0lb0h7voml1ei43gt3nk47p5j1l5dt2.apps.googleusercontent.com";
-  const clientSecret = window.prompt("Enter the Google OAuth client secret from your Desktop OAuth JSON:", "");
-  if (!clientSecret?.trim()) return;
   const data = await api("/api/google-calendar/connect", { method: "POST", body: { clientId, clientSecret } });
   if (window.granolieDesktop?.openExternal) await window.granolieDesktop.openExternal(data.url);
   else window.open(data.url, "_blank", "noopener");
@@ -1561,7 +1563,16 @@ function bindEvents() {
     setActiveView("calendar");
   });
   elements.googleCalendarButton.addEventListener("click", () => {
-    connectGoogleCalendar().catch((error) => setStatus(error.message));
+    elements.googleCalendarSecret.value = "";
+    elements.googleCalendarDialog.showModal();
+    elements.googleCalendarSecret.focus();
+  });
+  elements.closeGoogleCalendarDialogButton.addEventListener("click", () => elements.googleCalendarDialog.close());
+  elements.googleCalendarForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    connectGoogleCalendar(elements.googleCalendarSecret.value.trim())
+      .then(() => elements.googleCalendarDialog.close())
+      .catch((error) => setStatus(error.message));
   });
   elements.syncGoogleCalendarButton.addEventListener("click", () => {
     setStatus("Syncing Google Calendar...");
