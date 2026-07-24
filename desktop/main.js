@@ -64,6 +64,10 @@ function configureIpc() {
 
     return { ok: true };
   });
+
+  ipcMain.handle("granolie:open-external", async (_event, url) => {
+    await shell.openExternal(url);
+  });
 }
 
 function configurePermissions() {

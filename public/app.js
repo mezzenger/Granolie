@@ -35,6 +35,7 @@ const elements = {
   exportTranscriptButton: document.querySelector("#export-transcript-button"),
   fasterWhisperPresetButton: document.querySelector("#faster-whisper-preset-button"),
   generateNotesButton: document.querySelector("#generate-notes-button"),
+  googleCalendarButton: document.querySelector("#google-calendar-button"),
   importTranscriptButton: document.querySelector("#import-transcript-button"),
   newSessionButton: document.querySelector("#new-session-button"),
   notesBaseUrlInput: document.querySelector("#notes-base-url-input"),
@@ -65,6 +66,7 @@ const elements = {
   questionScopeSelect: document.querySelector("#question-scope-select"),
   statusText: document.querySelector("#status-text"),
   stopButton: document.querySelector("#stop-button"),
+  syncGoogleCalendarButton: document.querySelector("#sync-google-calendar-button"),
   templateSelect: document.querySelector("#template-select"),
   titleInput: document.querySelector("#title-input"),
   transcriptCount: document.querySelector("#transcript-count"),
@@ -630,6 +632,20 @@ async function refreshCalendar() {
   const data = await api("/api/calendar/events");
   state.calendarEvents = data.events || [];
   renderCalendar();
+}
+
+async function syncGoogleCalendarStatus() {
+  const data = await api("/api/google-calendar/status");
+  elements.googleCalendarButton.hidden = data.connected;
+  elements.syncGoogleCalendarButton.hidden = !data.connected;
+}
+
+async function connectGoogleCalendar() {
+  const clientId = "408498375815-r0lb0h7voml1ei43gt3nk47p5j1l5dt2.apps.googleusercontent.com";
+  const data = await api("/api/google-calendar/connect", { method: "POST", body: { clientId } });
+  if (window.granolieDesktop?.openExternal) await window.granolieDesktop.openExternal(data.url);
+  else window.open(data.url, "_blank", "noopener");
+  setStatus("Complete Google Calendar access in your browser, then return here and sync.");
 }
 
 function renderChat() {
@@ -1539,8 +1555,18 @@ function bindEvents() {
   });
   elements.chatTabButton.addEventListener("click", () => setActiveView("chat"));
   elements.calendarTabButton.addEventListener("click", () => {
-    refreshCalendar().catch((error) => setStatus(error.message));
+    Promise.all([refreshCalendar(), syncGoogleCalendarStatus()]).catch((error) => setStatus(error.message));
     setActiveView("calendar");
+  });
+  elements.googleCalendarButton.addEventListener("click", () => {
+    connectGoogleCalendar().catch((error) => setStatus(error.message));
+  });
+  elements.syncGoogleCalendarButton.addEventListener("click", () => {
+    setStatus("Syncing Google Calendar...");
+    api("/api/google-calendar/sync", { method: "POST" })
+      .then((data) => refreshCalendar().then(() => data))
+      .then((data) => setStatus(`Synced ${data.count} Google Calendar event${data.count === 1 ? "" : "s"}.`))
+      .catch((error) => setStatus(error.message));
   });
   elements.sessionTabButton.addEventListener("click", () => setActiveView("session"));
   elements.sidebarToggle.addEventListener("click", () => {
@@ -1704,6 +1730,7 @@ async function init() {
     bindEvents();
     renderChat();
     await refreshCalendar();
+    await syncGoogleCalendarStatus();
     updateWordCounts();
     updateRecordingState();
     renderOllamaModelSuggestions();

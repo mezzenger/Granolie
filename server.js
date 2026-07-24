@@ -12,6 +12,9 @@ const OLLAMA_QUESTION_TIMEOUT_MS = 90000;
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, "public");
 const PACKAGE_INFO = require(path.join(ROOT, "package.json"));
+const GOOGLE_REDIRECT_URI = "http://127.0.0.1:43112/oauth/google/callback";
+const GOOGLE_TOKEN_PATH = "google-calendar.json";
+let pendingGoogleAuth = null;
 
 const STATIC_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -68,6 +71,123 @@ function getCalendarDir() {
 
 function calendarEventsPath() {
   return path.join(getCalendarDir(), "events.json");
+}
+
+function googleTokenPath() {
+  return path.join(getCalendarDir(), GOOGLE_TOKEN_PATH);
+}
+
+async function readGoogleToken() {
+  try {
+    return JSON.parse(await fs.readFile(googleTokenPath(), "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function writeGoogleToken(token) {
+  await fs.writeFile(googleTokenPath(), JSON.stringify(token, null, 2), { mode: 0o600 });
+  return token;
+}
+
+function googleAuthUrl(clientId, state, verifier) {
+  const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: "code",
+    scope: "https://www.googleapis.com/auth/calendar.events.readonly",
+    access_type: "offline",
+    prompt: "consent",
+    state,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+async function exchangeGoogleCode(code, pending) {
+  const body = new URLSearchParams({
+    code,
+    client_id: pending.clientId,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    grant_type: "authorization_code",
+    code_verifier: pending.verifier,
+  });
+  const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", body });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error_description || data.error || "Google authorization failed.");
+  return writeGoogleToken({ ...data, clientId: pending.clientId, expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000 });
+}
+
+function beginGoogleAuth(clientId) {
+  if (!clientId.endsWith(".apps.googleusercontent.com")) {
+    const error = new Error("Enter a valid Google OAuth client ID.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (pendingGoogleAuth) {
+    return { url: pendingGoogleAuth.url };
+  }
+  const state = crypto.randomBytes(24).toString("base64url");
+  const verifier = crypto.randomBytes(48).toString("base64url");
+  const pending = { clientId, state, verifier, url: googleAuthUrl(clientId, state, verifier), server: null };
+  pendingGoogleAuth = pending;
+  pending.server = http.createServer(async (req, res) => {
+    const url = new URL(req.url, GOOGLE_REDIRECT_URI);
+    if (url.pathname !== "/oauth/google/callback" || url.searchParams.get("state") !== pending.state) {
+      sendText(res, 400, "Google authorization could not be verified.");
+      return;
+    }
+    try {
+      await exchangeGoogleCode(url.searchParams.get("code") || "", pending);
+      sendText(res, 200, "Granolie is connected to Google Calendar. You can close this tab.");
+    } catch (error) {
+      sendText(res, 500, `Granolie could not connect: ${error.message}`);
+    } finally {
+      pending.server.close();
+      pendingGoogleAuth = null;
+    }
+  });
+  pending.server.listen(43112, HOST);
+  return { url: pending.url };
+}
+
+async function googleAccessToken() {
+  const token = await readGoogleToken();
+  if (!token) {
+    const error = new Error("Connect Google Calendar first.");
+    error.statusCode = 401;
+    throw error;
+  }
+  if (token.expiresAt > Date.now() + 60000) return token.access_token;
+  const body = new URLSearchParams({ client_id: token.clientId, refresh_token: token.refresh_token, grant_type: "refresh_token" });
+  const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", body });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error_description || "Google token refresh failed.");
+  await writeGoogleToken({ ...token, ...data, expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000 });
+  return data.access_token;
+}
+
+async function syncGoogleCalendar() {
+  const accessToken = await googleAccessToken();
+  const params = new URLSearchParams({ singleEvents: "true", orderBy: "startTime", timeMin: new Date().toISOString(), maxResults: "250" });
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || "Google Calendar sync failed.");
+  const googleEvents = (data.items || []).filter((item) => item.start?.dateTime).map((item) => ({
+    id: `google:${item.id}`,
+    title: item.summary || "Untitled event",
+    start: item.start.dateTime,
+    end: item.end?.dateTime || item.start.dateTime,
+    location: item.location || "",
+    description: item.description || "",
+    source: "google",
+  }));
+  const local = (await listCalendarEvents()).filter((event) => event.source !== "google");
+  await writeCalendarEvents([...local, ...googleEvents]);
+  return googleEvents.length;
 }
 
 async function listCalendarEvents() {
@@ -1129,6 +1249,22 @@ async function handleApi(req, res, url) {
 
   if (req.method === "GET" && pathname === "/api/calendar/events") {
     sendJson(res, 200, { events: await listCalendarEvents() });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/google-calendar/status") {
+    sendJson(res, 200, { connected: Boolean(await readGoogleToken()) });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/google-calendar/connect") {
+    const body = await readJsonBody(req);
+    sendJson(res, 200, beginGoogleAuth(String(body.clientId || "").trim()));
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/google-calendar/sync") {
+    sendJson(res, 200, { count: await syncGoogleCalendar() });
     return;
   }
 
