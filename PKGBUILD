@@ -1,6 +1,6 @@
 pkgname=granolie
 pkgver=0.1.0
-pkgrel=33
+pkgrel=34
 pkgdesc="Linux-first local AI meeting notes app with transcription and structured summaries"
 arch=('x86_64')
 url='https://github.com/mezzenger/Granolie'

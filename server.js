@@ -41,7 +41,11 @@ const NOTE_TEMPLATES = {
 };
 
 async function ensureDirectories() {
-  await Promise.all([fs.mkdir(getSessionsDir(), { recursive: true }), fs.mkdir(getAudioDir(), { recursive: true })]);
+  await Promise.all([
+    fs.mkdir(getSessionsDir(), { recursive: true }),
+    fs.mkdir(getAudioDir(), { recursive: true }),
+    fs.mkdir(getCalendarDir(), { recursive: true }),
+  ]);
 }
 
 function getDataDir() {
@@ -56,6 +60,89 @@ function getSessionsDir() {
 
 function getAudioDir() {
   return path.join(getDataDir(), "audio");
+}
+
+function getCalendarDir() {
+  return path.join(getDataDir(), "calendar");
+}
+
+function calendarEventsPath() {
+  return path.join(getCalendarDir(), "events.json");
+}
+
+async function listCalendarEvents() {
+  try {
+    const events = JSON.parse(await fs.readFile(calendarEventsPath(), "utf8"));
+    return Array.isArray(events) ? events.sort((left, right) => left.start.localeCompare(right.start)) : [];
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function writeCalendarEvents(events) {
+  const sorted = [...events].sort((left, right) => left.start.localeCompare(right.start));
+  await fs.writeFile(calendarEventsPath(), JSON.stringify(sorted, null, 2));
+  return sorted;
+}
+
+function parseIcsDate(value) {
+  const compact = String(value || "").trim();
+  if (/^\d{8}$/.test(compact)) {
+    return new Date(`${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}T09:00:00`).toISOString();
+  }
+  const match = compact.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
+  if (!match) {
+    return "";
+  }
+  const [, year, month, day, hour, minute, second, utc] = match;
+  return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}${utc ? "Z" : ""}`).toISOString();
+}
+
+function importIcsEvents(content) {
+  const lines = String(content || "").replace(/\r\n[ \t]/g, "").split(/\r?\n/);
+  const events = [];
+  let current = null;
+
+  for (const line of lines) {
+    if (line === "BEGIN:VEVENT") {
+      current = {};
+      continue;
+    }
+    if (line === "END:VEVENT") {
+      if (current?.start && current.title) {
+        events.push({
+          id: current.uid || crypto.randomUUID(),
+          title: current.title,
+          start: current.start,
+          end: current.end || current.start,
+          location: current.location || "",
+          description: current.description || "",
+          source: "ics",
+        });
+      }
+      current = null;
+      continue;
+    }
+    if (!current) {
+      continue;
+    }
+    const separator = line.indexOf(":");
+    if (separator < 0) {
+      continue;
+    }
+    const key = line.slice(0, separator).split(";")[0];
+    const value = line.slice(separator + 1).replace(/\\n/g, "\n").replace(/\\,/g, ",");
+    if (key === "UID") current.uid = value;
+    if (key === "SUMMARY") current.title = value;
+    if (key === "LOCATION") current.location = value;
+    if (key === "DESCRIPTION") current.description = value;
+    if (key === "DTSTART") current.start = parseIcsDate(value);
+    if (key === "DTEND") current.end = parseIcsDate(value);
+  }
+  return events;
 }
 
 function normalizeAiProvider(value) {
@@ -1037,6 +1124,47 @@ async function handleApi(req, res, url) {
 
   if (req.method === "GET" && pathname === "/api/sessions") {
     sendJson(res, 200, { sessions: await listSessions() });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/calendar/events") {
+    sendJson(res, 200, { events: await listCalendarEvents() });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/calendar/events") {
+    const body = await readJsonBody(req);
+    const title = String(body.title || "").trim();
+    const start = new Date(body.start || "");
+    const end = new Date(body.end || "");
+    if (!title || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      const error = new Error("An event needs a title and a valid start and end time.");
+      error.statusCode = 400;
+      throw error;
+    }
+    const events = await listCalendarEvents();
+    const event = {
+      id: crypto.randomUUID(),
+      title,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      location: String(body.location || "").trim(),
+      description: "",
+      source: "manual",
+    };
+    await writeCalendarEvents([...events, event]);
+    sendJson(res, 201, { event });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/calendar/import") {
+    const body = await readJsonBody(req);
+    const imported = importIcsEvents(body.content);
+    const existing = await listCalendarEvents();
+    const existingIds = new Set(existing.map((event) => event.id));
+    const added = imported.filter((event) => !existingIds.has(event.id));
+    await writeCalendarEvents([...existing, ...added]);
+    sendJson(res, 200, { added: added.length, events: await listCalendarEvents() });
     return;
   }
 

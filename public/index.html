@@ -42,6 +42,7 @@
           </div>
           <div class="view-tabs" role="tablist" aria-label="Workspace view">
             <button class="view-tab active" id="chat-tab-button" type="button" role="tab" aria-selected="true">Ask Granolie</button>
+            <button class="view-tab" id="calendar-tab-button" type="button" role="tab" aria-selected="false">Calendar</button>
             <button class="view-tab" id="session-tab-button" type="button" role="tab" aria-selected="false">Session</button>
           </div>
         </header>
@@ -63,6 +64,40 @@
               <button class="primary-button chat-send-button" id="ask-sessions-button" type="submit">Ask</button>
             </div>
           </form>
+        </section>
+
+        <section id="calendar-view" class="calendar-view" hidden>
+          <header class="calendar-header">
+            <div>
+              <p class="section-label">Schedule</p>
+              <h2 id="calendar-heading">This week</h2>
+            </div>
+            <div class="header-actions">
+              <label class="file-button compact-button" for="calendar-file-input">Import calendar</label>
+              <input id="calendar-file-input" type="file" accept=".ics,text/calendar" hidden>
+              <button class="primary-button" id="add-calendar-event-button" type="button">Add event</button>
+            </div>
+          </header>
+          <section class="calendar-content">
+            <div id="calendar-grid" class="calendar-grid" aria-live="polite"></div>
+            <aside class="calendar-agenda">
+              <p class="section-label">Up next</p>
+              <div id="calendar-upcoming" class="calendar-upcoming"></div>
+            </aside>
+          </section>
+          <dialog id="calendar-event-dialog" class="calendar-dialog">
+            <form id="calendar-event-form" method="dialog">
+              <header>
+                <h2>New event</h2>
+                <button class="ghost-button compact-button" value="cancel" type="button" id="close-calendar-dialog-button">Close</button>
+              </header>
+              <label class="detail-field" for="calendar-event-title"><span>Title</span><input id="calendar-event-title" required maxlength="160" type="text"></label>
+              <label class="detail-field" for="calendar-event-start"><span>Starts</span><input id="calendar-event-start" required type="datetime-local"></label>
+              <label class="detail-field" for="calendar-event-end"><span>Ends</span><input id="calendar-event-end" required type="datetime-local"></label>
+              <label class="detail-field" for="calendar-event-location"><span>Location</span><input id="calendar-event-location" maxlength="160" type="text"></label>
+              <button class="primary-button" type="submit">Save event</button>
+            </form>
+          </dialog>
         </section>
 
         <div id="session-view" class="session-view" hidden>

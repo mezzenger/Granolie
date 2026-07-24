@@ -3,12 +3,26 @@ const elements = {
   appVersion: document.querySelector("#app-version"),
   appShell: document.querySelector("#app-shell"),
   askSessionsButton: document.querySelector("#ask-sessions-button"),
+  addCalendarEventButton: document.querySelector("#add-calendar-event-button"),
   audioFileInput: document.querySelector("#audio-file-input"),
   chatComposer: document.querySelector("#chat-composer"),
   chatEmptyState: document.querySelector("#chat-empty-state"),
   chatTabButton: document.querySelector("#chat-tab-button"),
   chatThread: document.querySelector("#chat-thread"),
   chatView: document.querySelector("#chat-view"),
+  calendarEventDialog: document.querySelector("#calendar-event-dialog"),
+  calendarEventEnd: document.querySelector("#calendar-event-end"),
+  calendarEventForm: document.querySelector("#calendar-event-form"),
+  calendarEventLocation: document.querySelector("#calendar-event-location"),
+  calendarEventStart: document.querySelector("#calendar-event-start"),
+  calendarEventTitle: document.querySelector("#calendar-event-title"),
+  calendarFileInput: document.querySelector("#calendar-file-input"),
+  calendarGrid: document.querySelector("#calendar-grid"),
+  calendarHeading: document.querySelector("#calendar-heading"),
+  calendarTabButton: document.querySelector("#calendar-tab-button"),
+  calendarUpcoming: document.querySelector("#calendar-upcoming"),
+  calendarView: document.querySelector("#calendar-view"),
+  closeCalendarDialogButton: document.querySelector("#close-calendar-dialog-button"),
   clearNotesButton: document.querySelector("#clear-notes-button"),
   contextInput: document.querySelector("#context-input"),
   copyNotesButton: document.querySelector("#copy-notes-button"),
@@ -89,6 +103,7 @@ const state = {
   audioLevelFrameId: null,
   audioLevelSources: [],
   captureStreams: [],
+  calendarEvents: [],
   audioLevelAnalyser: null,
   chatMessages: [],
   isApplyingSession: false,
@@ -525,18 +540,96 @@ async function refreshSessions(preferredId) {
 }
 
 function setActiveView(view) {
-  const showChat = view === "chat";
-  state.activeView = showChat ? "chat" : "session";
+  state.activeView = ["chat", "calendar", "session"].includes(view) ? view : "chat";
+  const showChat = state.activeView === "chat";
+  const showCalendar = state.activeView === "calendar";
   elements.chatView.hidden = !showChat;
-  elements.sessionView.hidden = showChat;
+  elements.calendarView.hidden = !showCalendar;
+  elements.sessionView.hidden = state.activeView !== "session";
   elements.chatTabButton.classList.toggle("active", showChat);
-  elements.sessionTabButton.classList.toggle("active", !showChat);
+  elements.calendarTabButton.classList.toggle("active", showCalendar);
+  elements.sessionTabButton.classList.toggle("active", state.activeView === "session");
   elements.chatTabButton.setAttribute("aria-selected", String(showChat));
-  elements.sessionTabButton.setAttribute("aria-selected", String(!showChat));
+  elements.calendarTabButton.setAttribute("aria-selected", String(showCalendar));
+  elements.sessionTabButton.setAttribute("aria-selected", String(state.activeView === "session"));
 
   if (showChat) {
     window.requestAnimationFrame(() => elements.sessionQuestionInput.focus());
   }
+}
+
+function toLocalDateTimeInput(date) {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function startOfWeek(date = new Date()) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  next.setDate(next.getDate() - ((next.getDay() + 6) % 7));
+  return next;
+}
+
+function renderCalendar() {
+  const weekStart = startOfWeek();
+  const formatter = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric" });
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(weekStart);
+    day.setDate(day.getDate() + index);
+    return day;
+  });
+  elements.calendarHeading.textContent = `${formatter.format(days[0])} - ${formatter.format(days[6])}`;
+  elements.calendarGrid.innerHTML = "";
+  const today = new Date().toDateString();
+  const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+  const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+
+  for (const day of days) {
+    const column = document.createElement("section");
+    column.className = `calendar-day${day.toDateString() === today ? " today" : ""}`;
+    const header = document.createElement("header");
+    header.innerHTML = `<span>${weekday.format(day)}</span><strong>${day.getDate()}</strong>`;
+    column.append(header);
+    const events = state.calendarEvents.filter((event) => new Date(event.start).toDateString() === day.toDateString());
+    for (const event of events) {
+      const node = document.createElement("article");
+      node.className = "calendar-event";
+      node.innerHTML = `<strong></strong><span></span><small></small>`;
+      node.querySelector("strong").textContent = event.title;
+      node.querySelector("span").textContent = `${time.format(new Date(event.start))} - ${time.format(new Date(event.end))}`;
+      node.querySelector("small").textContent = event.location || "";
+      column.append(node);
+    }
+    if (!events.length) {
+      const empty = document.createElement("p");
+      empty.className = "calendar-empty";
+      empty.textContent = "Open";
+      column.append(empty);
+    }
+    elements.calendarGrid.append(column);
+  }
+
+  elements.calendarUpcoming.innerHTML = "";
+  const upcoming = state.calendarEvents.filter((event) => new Date(event.end) >= new Date()).slice(0, 6);
+  if (!upcoming.length) {
+    elements.calendarUpcoming.innerHTML = '<p class="calendar-empty">No upcoming events. Import an .ics calendar or add one here.</p>';
+    return;
+  }
+  for (const event of upcoming) {
+    const node = document.createElement("article");
+    node.className = "upcoming-event";
+    node.innerHTML = `<strong></strong><span></span><small></small>`;
+    node.querySelector("strong").textContent = event.title;
+    node.querySelector("span").textContent = `${weekday.format(new Date(event.start))}, ${time.format(new Date(event.start))}`;
+    node.querySelector("small").textContent = event.location || "";
+    elements.calendarUpcoming.append(node);
+  }
+}
+
+async function refreshCalendar() {
+  const data = await api("/api/calendar/events");
+  state.calendarEvents = data.events || [];
+  renderCalendar();
 }
 
 function renderChat() {
@@ -1445,6 +1538,10 @@ function bindEvents() {
     elements.chatComposer.requestSubmit();
   });
   elements.chatTabButton.addEventListener("click", () => setActiveView("chat"));
+  elements.calendarTabButton.addEventListener("click", () => {
+    refreshCalendar().catch((error) => setStatus(error.message));
+    setActiveView("calendar");
+  });
   elements.sessionTabButton.addEventListener("click", () => setActiveView("session"));
   elements.sidebarToggle.addEventListener("click", () => {
     setSidebarCollapsed(!state.sidebarCollapsed);
@@ -1480,6 +1577,49 @@ function bindEvents() {
   elements.loadSavedAudioButton.addEventListener("click", loadSavedAudio);
   elements.deleteAudioButton.addEventListener("click", () => {
     deleteAudio().catch((error) => setStatus(error.message));
+  });
+  elements.addCalendarEventButton.addEventListener("click", () => {
+    const start = new Date();
+    start.setMinutes(0, 0, 0);
+    start.setHours(start.getHours() + 1);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    elements.calendarEventForm.reset();
+    elements.calendarEventStart.value = toLocalDateTimeInput(start);
+    elements.calendarEventEnd.value = toLocalDateTimeInput(end);
+    elements.calendarEventDialog.showModal();
+    elements.calendarEventTitle.focus();
+  });
+  elements.closeCalendarDialogButton.addEventListener("click", () => elements.calendarEventDialog.close());
+  elements.calendarEventForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    api("/api/calendar/events", {
+      method: "POST",
+      body: {
+        title: elements.calendarEventTitle.value,
+        start: elements.calendarEventStart.value,
+        end: elements.calendarEventEnd.value,
+        location: elements.calendarEventLocation.value,
+      },
+    })
+      .then(() => refreshCalendar())
+      .then(() => {
+        elements.calendarEventDialog.close();
+        setStatus("Calendar event saved.");
+      })
+      .catch((error) => setStatus(error.message));
+  });
+  elements.calendarFileInput.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const data = await api("/api/calendar/import", { method: "POST", body: { content: await file.text() } });
+      state.calendarEvents = data.events || [];
+      renderCalendar();
+      setStatus(`Imported ${data.added} calendar event${data.added === 1 ? "" : "s"}.`);
+    } catch (error) {
+      setStatus(error.message);
+    }
   });
   [elements.microphoneSourceInput, elements.systemAudioSourceInput].forEach((element) => {
     element.addEventListener("change", () => {
@@ -1563,6 +1703,7 @@ async function init() {
     applySettings();
     bindEvents();
     renderChat();
+    await refreshCalendar();
     updateWordCounts();
     updateRecordingState();
     renderOllamaModelSuggestions();
