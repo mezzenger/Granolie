@@ -12,7 +12,7 @@ const OLLAMA_QUESTION_TIMEOUT_MS = 90000;
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, "public");
 const PACKAGE_INFO = require(path.join(ROOT, "package.json"));
-const GOOGLE_REDIRECT_URI = "http://127.0.0.1:43112/oauth/google/callback";
+const GOOGLE_REDIRECT_URI = "http://127.0.0.1:43112";
 const GOOGLE_TOKEN_PATH = "google-calendar.json";
 let pendingGoogleAuth = null;
 
@@ -136,7 +136,7 @@ function beginGoogleAuth(clientId) {
   pendingGoogleAuth = pending;
   pending.server = http.createServer(async (req, res) => {
     const url = new URL(req.url, GOOGLE_REDIRECT_URI);
-    if (url.pathname !== "/oauth/google/callback" || url.searchParams.get("state") !== pending.state) {
+    if (url.pathname !== "/" || url.searchParams.get("state") !== pending.state) {
       sendText(res, 400, "Google authorization could not be verified.");
       return;
     }
