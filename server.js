@@ -39,6 +39,18 @@ const NOTE_TEMPLATES = {
     "Format the notes as a sales call with sections for prospect context, needs, objections, buying signals, follow-up tasks, and next steps.",
   interview:
     "Format the notes as an interview debrief with sections for candidate background, strengths, concerns, evidence, recommendation, and follow-up.",
+  sermon:
+    "Turn this sermon into structured study notes with sections for scripture passages, central message, key movements, memorable quotations, practical applications, reflection questions, and prayer points. Preserve theological nuance and do not invent citations.",
+  ted_talk:
+    "Summarize this TED-style talk with sections for the core idea, narrative arc, supporting evidence, memorable stories or quotations, practical implications, and key takeaways.",
+  lecture:
+    "Create clear lecture notes with sections for learning objectives, core concepts, definitions, examples, arguments or derivations, important quotations, and a concise study checklist.",
+  workshop:
+    "Format this workshop as practical learning notes with sections for goals, framework, activities, demonstrations, techniques, resources, exercises, and next actions.",
+  podcast:
+    "Summarize this podcast episode with sections for episode premise, guest perspectives, key ideas, notable quotations, recommendations, and follow-up resources.",
+  research_briefing:
+    "Create a research briefing with sections for research question, evidence and findings, methodology mentioned, uncertainties, implications, exact quotations, and open questions.",
   custom:
     "Follow the user's custom instructions closely and return polished markdown notes.",
 };
