@@ -1,6 +1,6 @@
 pkgname=granolie
 pkgver=0.1.0
-pkgrel=41
+pkgrel=42
 pkgdesc="Linux-first local AI meeting notes app with transcription and structured summaries"
 arch=('x86_64')
 url='https://github.com/mezzenger/Granolie'
@@ -19,6 +19,8 @@ optdepends=(
   'libappindicator-gtk3: tray integration support'
   'python: local faster-whisper transcription runtime and LibreOffice Writer integration'
   'uv: on-demand bootstrap for the local faster-whisper helper'
+  'pipewire: direct computer-audio recording support'
+  'ffmpeg: combines computer audio and microphone recordings'
 )
 options=(!strip !debug)
 source=()

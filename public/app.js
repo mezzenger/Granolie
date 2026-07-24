@@ -131,6 +131,7 @@ const state = {
   sessions: [],
   sidebarCollapsed: localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true",
   settings: loadSettings(),
+  systemAudioCaptureActive: false,
   ollamaModels: [],
   processingTasks: [],
 };
@@ -1024,6 +1025,7 @@ function finishRecording(errorMessage = "") {
   state.mediaRecorder = null;
   state.mediaStream = null;
   state.captureStreams = [];
+  state.systemAudioCaptureActive = false;
   state.isRecording = false;
   state.recordingStartedAt = 0;
   stopRecordingTimer();
@@ -1044,41 +1046,38 @@ async function startRecording() {
     return;
   }
 
-  if (!navigator.mediaDevices?.getUserMedia) {
+  if (includeMicrophone && !navigator.mediaDevices?.getUserMedia) {
     setStatus("This browser does not expose the required audio capture API.");
     return;
   }
 
   try {
     state.captureStreams = [];
+    if (includeSystemAudio) {
+      if (!window.granolieDesktop?.startSystemAudioCapture) {
+        throw new Error("Computer audio recording is available in the Granolie desktop app only.");
+      }
+      await window.granolieDesktop.startSystemAudioCapture();
+      state.systemAudioCaptureActive = true;
+    }
     if (includeMicrophone) {
       state.captureStreams.push(await navigator.mediaDevices.getUserMedia({ audio: true }));
     }
-    if (includeSystemAudio) {
-      state.captureStreams.push(await getComputerAudioStream());
-    }
-
-    state.mediaStream = createMixedAudioStream(state.captureStreams);
     state.recordingChunks = [];
-    state.mediaRecorder = new MediaRecorder(state.mediaStream);
-    state.mediaRecorder.addEventListener("dataavailable", (event) => {
-      if (event.data.size > 0) {
-        state.recordingChunks.push(event.data);
-      }
-    });
-    state.mediaRecorder.addEventListener("stop", () => {
-      state.audioBlob = new Blob(state.recordingChunks, {
-        type: state.mediaRecorder?.mimeType || "audio/webm",
+    if (includeMicrophone) {
+      state.mediaStream = createMixedAudioStream(state.captureStreams);
+      state.mediaRecorder = new MediaRecorder(state.mediaStream);
+      state.mediaRecorder.addEventListener("dataavailable", (event) => {
+        if (event.data.size > 0) {
+          state.recordingChunks.push(event.data);
+        }
       });
-      state.audioMimeType = state.audioBlob.type || "audio/webm";
-      state.audioFileName = `recording-${Date.now()}.webm`;
-      finishRecording();
-    });
-    state.mediaRecorder.addEventListener("error", (event) => {
-      finishRecording(event.error?.message || "Recording stopped because the microphone recorder failed.");
-    });
-
-    state.mediaRecorder.start(1000);
+      state.mediaRecorder.addEventListener("stop", () => finalizeRecording());
+      state.mediaRecorder.addEventListener("error", (event) => {
+        finalizeRecording(event.error?.message || "Recording stopped because the microphone recorder failed.");
+      });
+      state.mediaRecorder.start(1000);
+    }
     state.isRecording = true;
     state.recordingStartedAt = Date.now();
     state.recordingTimerId = window.setInterval(updateRecordingState, 1000);
@@ -1088,29 +1087,40 @@ async function startRecording() {
     state.captureStreams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
     state.captureStreams = [];
     state.mediaStream = null;
+    if (state.systemAudioCaptureActive) {
+      window.granolieDesktop?.cancelSystemAudioCapture?.().catch(() => {});
+      state.systemAudioCaptureActive = false;
+    }
     stopAudioLevelMeter();
     setStatus(error.message || "Could not start microphone capture.");
   }
 }
 
-async function getComputerAudioStream() {
-  // PipeWire exposes output-monitor sources as normal audio inputs, avoiding screen capture.
-  const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const inputs = await navigator.mediaDevices.enumerateDevices();
-  const monitor = inputs.find(
-    (device) =>
-      device.kind === "audioinput" &&
-      /monitor|loopback|system audio|output/i.test(device.label)
-  );
-  probe.getTracks().forEach((track) => track.stop());
-
-  if (!monitor) {
-    throw new Error(
-      "No PipeWire monitor source was found. Choose an output-monitor input in your system audio settings, then restart Granolie."
-    );
+async function finalizeRecording(errorMessage = "") {
+  try {
+    const microphoneBlob = state.mediaRecorder
+      ? new Blob(state.recordingChunks, { type: state.mediaRecorder.mimeType || "audio/webm" })
+      : null;
+    if (state.systemAudioCaptureActive) {
+      setStatus("Finalizing computer audio...");
+      const recordedAudio = await window.granolieDesktop.finishSystemAudioCapture({
+        microphoneAudioBase64: microphoneBlob ? await fileToBase64(microphoneBlob) : "",
+        microphoneMimeType: microphoneBlob?.type || "audio/webm",
+      });
+      state.audioBlob = new Blob([Uint8Array.from(atob(recordedAudio.audioBase64), (character) => character.charCodeAt(0))], {
+        type: recordedAudio.mimeType,
+      });
+      state.audioMimeType = recordedAudio.mimeType;
+      state.audioFileName = recordedAudio.fileName;
+    } else if (microphoneBlob) {
+      state.audioBlob = microphoneBlob;
+      state.audioMimeType = microphoneBlob.type || "audio/webm";
+      state.audioFileName = `recording-${Date.now()}.webm`;
+    }
+    finishRecording(errorMessage);
+  } catch (error) {
+    finishRecording(error.message || errorMessage || "Could not finalize the recording.");
   }
-
-  return navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: monitor.deviceId } } });
 }
 
 async function saveAudioWithSession() {
@@ -1181,12 +1191,16 @@ async function deleteAudio() {
 }
 
 function stopRecording() {
-  if (!state.isRecording || !state.mediaRecorder) {
+  if (!state.isRecording) {
     return;
   }
 
-  state.mediaRecorder.stop();
   setStatus("Finishing recording...");
+  if (state.mediaRecorder) {
+    state.mediaRecorder.stop();
+    return;
+  }
+  finalizeRecording();
 }
 
 function fileToBase64(blob) {
