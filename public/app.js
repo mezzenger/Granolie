@@ -39,6 +39,8 @@ const elements = {
   recordButton: document.querySelector("#record-button"),
   recordingMonitor: document.querySelector("#recording-monitor"),
   recordingMeta: document.querySelector("#recording-meta"),
+  saveAudioButton: document.querySelector("#save-audio-button"),
+  loadSavedAudioButton: document.querySelector("#load-saved-audio-button"),
   sessionItemTemplate: document.querySelector("#session-item-template"),
   sessionList: document.querySelector("#session-list"),
   sessionQuestionInput: document.querySelector("#session-question-input"),
@@ -99,6 +101,7 @@ const state = {
   recordingStartedAt: 0,
   recordingTimerId: null,
   saveTimerId: null,
+  savedAudio: null,
   searchQuery: "",
   sessions: [],
   sidebarCollapsed: localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true",
@@ -494,6 +497,7 @@ function applySession(session, options = {}) {
   const preserveAudio = options.preserveAudio === true;
   state.isApplyingSession = true;
   state.activeSessionId = session.id;
+  state.savedAudio = session.audio || null;
   state.isUntitledSessionName =
     session.title === "Untitled session" && !String(session.transcript || "").trim() && !String(session.notes || "").trim();
   elements.titleInput.value = session.title || "";
@@ -775,7 +779,9 @@ function updateRecordingState() {
   elements.recordButton.classList.toggle("recording", state.isRecording);
   elements.recordButton.textContent = state.isRecording ? "Recording..." : "Start recording";
   elements.stopButton.disabled = !state.isRecording;
-  elements.deleteAudioButton.disabled = state.isRecording || !state.audioBlob;
+  elements.deleteAudioButton.disabled = state.isRecording || (!state.audioBlob && !state.savedAudio);
+  elements.saveAudioButton.disabled = state.isRecording || !state.audioBlob || !state.activeSessionId;
+  elements.loadSavedAudioButton.disabled = state.isRecording || !state.savedAudio || Boolean(state.audioBlob);
   elements.transcribeButton.disabled = state.isRecording;
   elements.microphoneSourceInput.disabled = state.isRecording;
   elements.systemAudioSourceInput.disabled = state.isRecording;
@@ -788,6 +794,12 @@ function updateRecordingState() {
   if (state.audioBlob) {
     const kb = Math.round(state.audioBlob.size / 1024);
     elements.recordingMeta.textContent = `${state.audioFileName || "Audio loaded"} (${kb} KB)`;
+    return;
+  }
+
+  if (state.savedAudio) {
+    const kb = Math.round(state.savedAudio.size / 1024);
+    elements.recordingMeta.textContent = `Saved audio: ${state.savedAudio.fileName || "recording"} (${kb} KB)`;
     return;
   }
 
@@ -950,12 +962,69 @@ async function startRecording() {
   }
 }
 
-function deleteAudio() {
-  if (state.isRecording || !state.audioBlob) {
+async function saveAudioWithSession() {
+  if (!state.audioBlob || !state.activeSessionId) {
+    return;
+  }
+
+  setStatus("Saving audio with this session...");
+  elements.saveAudioButton.disabled = true;
+  try {
+    const data = await api(`/api/sessions/${state.activeSessionId}/audio`, {
+      method: "POST",
+      body: {
+        audioBase64: await fileToBase64(state.audioBlob),
+        fileName: state.audioFileName || "recording.webm",
+        mimeType: state.audioMimeType || "audio/webm",
+      },
+    });
+    state.savedAudio = data.session.audio || null;
+    updateRecordingState();
+    setStatus("Audio saved with this session.");
+  } catch (error) {
+    setStatus(error.message);
+  } finally {
+    updateRecordingState();
+  }
+}
+
+async function loadSavedAudio() {
+  if (!state.savedAudio || !state.activeSessionId || state.audioBlob) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/sessions/${state.activeSessionId}/audio`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || "Could not load saved audio.");
+    }
+    state.audioBlob = await response.blob();
+    state.audioFileName = state.savedAudio.fileName || "saved-recording.webm";
+    state.audioMimeType = state.savedAudio.mimeType || state.audioBlob.type || "audio/webm";
+    updateRecordingState();
+    setStatus("Saved audio loaded.");
+  } catch (error) {
+    setStatus(error.message);
+  }
+}
+
+async function deleteAudio() {
+  if (state.isRecording || (!state.audioBlob && !state.savedAudio)) {
     return;
   }
 
   clearAudioState();
+  if (state.savedAudio && state.activeSessionId) {
+    try {
+      const data = await api(`/api/sessions/${state.activeSessionId}/audio`, { method: "DELETE" });
+      state.savedAudio = data.session.audio || null;
+    } catch (error) {
+      setStatus(error.message);
+      updateRecordingState();
+      return;
+    }
+  }
   updateRecordingState();
   setStatus("Audio removed.");
 }
@@ -1407,7 +1476,11 @@ function bindEvents() {
   elements.fasterWhisperPresetButton.addEventListener("click", applyFasterWhisperPreset);
   elements.recordButton.addEventListener("click", startRecording);
   elements.stopButton.addEventListener("click", stopRecording);
-  elements.deleteAudioButton.addEventListener("click", deleteAudio);
+  elements.saveAudioButton.addEventListener("click", saveAudioWithSession);
+  elements.loadSavedAudioButton.addEventListener("click", loadSavedAudio);
+  elements.deleteAudioButton.addEventListener("click", () => {
+    deleteAudio().catch((error) => setStatus(error.message));
+  });
   [elements.microphoneSourceInput, elements.systemAudioSourceInput].forEach((element) => {
     element.addEventListener("change", () => {
       saveSettings();

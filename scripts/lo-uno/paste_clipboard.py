@@ -40,6 +40,18 @@ def connect_to_writer(port):
     raise RuntimeError(f"LibreOffice did not accept its UNO connection: {last_error}")
 
 
+def wait_for_writer_document(desktop):
+    deadline = time.monotonic() + 15
+
+    while time.monotonic() < deadline:
+        document = desktop.getCurrentComponent()
+        if document and hasattr(document, "Text"):
+            return document
+        time.sleep(0.2)
+
+    raise RuntimeError("LibreOffice Writer did not open a document.")
+
+
 def main():
     soffice = os.environ.get("GRANOLIE_LIBREOFFICE_BIN", "libreoffice")
     port = reserve_port()
@@ -66,9 +78,7 @@ def main():
     context = connect_to_writer(port)
     service_manager = context.ServiceManager
     desktop = service_manager.createInstanceWithContext("com.sun.star.frame.Desktop", context)
-    document = desktop.getCurrentComponent()
-    if not hasattr(document, "Text"):
-        document = desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())
+    document = wait_for_writer_document(desktop)
     frame = document.getCurrentController().getFrame()
     frame.activate()
     frame.getContainerWindow().setFocus()

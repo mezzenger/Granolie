@@ -41,7 +41,7 @@ const NOTE_TEMPLATES = {
 };
 
 async function ensureDirectories() {
-  await fs.mkdir(getSessionsDir(), { recursive: true });
+  await Promise.all([fs.mkdir(getSessionsDir(), { recursive: true }), fs.mkdir(getAudioDir(), { recursive: true })]);
 }
 
 function getDataDir() {
@@ -52,6 +52,10 @@ function getDataDir() {
 
 function getSessionsDir() {
   return path.join(getDataDir(), "sessions");
+}
+
+function getAudioDir() {
+  return path.join(getDataDir(), "audio");
 }
 
 function normalizeAiProvider(value) {
@@ -164,6 +168,7 @@ function createSessionRecord(overrides = {}) {
     notes: "",
     context: "",
     summary: "",
+    audio: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -172,6 +177,10 @@ function createSessionRecord(overrides = {}) {
 
 function sessionPath(id) {
   return path.join(getSessionsDir(), `${id}.json`);
+}
+
+function audioPath(id, extension) {
+  return path.join(getAudioDir(), `${id}${extension}`);
 }
 
 async function writeSession(session) {
@@ -204,6 +213,7 @@ async function listSessions() {
         title: session.title,
         template: session.template,
         summary: session.summary,
+        audio: session.audio || null,
         updatedAt: session.updatedAt,
         createdAt: session.createdAt,
       });
@@ -236,7 +246,51 @@ async function listFullSessions() {
 }
 
 async function deleteSession(id) {
+  const session = await readSession(id).catch(() => null);
+  if (session?.audio?.extension) {
+    await fs.unlink(audioPath(id, session.audio.extension)).catch(() => {});
+  }
   await fs.unlink(sessionPath(id));
+}
+
+async function saveSessionAudio(id, payload) {
+  const session = await readSession(id);
+  const audioBase64 = String(payload.audioBase64 || "");
+  const fileName = String(payload.fileName || "recording.webm");
+  const mimeType = String(payload.mimeType || "audio/webm");
+
+  if (!audioBase64) {
+    const error = new Error("Audio is required to save it with this session.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const content = Buffer.from(audioBase64, "base64");
+  if (!content.length || content.length > 512 * 1024 * 1024) {
+    const error = new Error("Saved audio must be between 1 byte and 512 MB.");
+    error.statusCode = 413;
+    throw error;
+  }
+
+  const extension = guessAudioExtension(fileName, mimeType);
+  if (session.audio?.extension) {
+    await fs.unlink(audioPath(id, session.audio.extension)).catch(() => {});
+  }
+
+  await fs.writeFile(audioPath(id, extension), content);
+  const next = await writeSession({
+    ...session,
+    audio: { extension, fileName, mimeType, size: content.length, savedAt: new Date().toISOString() },
+  });
+  return next;
+}
+
+async function removeSessionAudio(id) {
+  const session = await readSession(id);
+  if (session.audio?.extension) {
+    await fs.unlink(audioPath(id, session.audio.extension)).catch(() => {});
+  }
+  return writeSession({ ...session, audio: null });
 }
 
 function isDiscardableEmptySession(session) {
@@ -992,6 +1046,48 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  const audioMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/audio$/);
+  if (audioMatch) {
+    const id = audioMatch[1];
+
+    if (req.method === "POST") {
+      const session = await saveSessionAudio(id, await readJsonBody(req));
+      sendJson(res, 200, { session });
+      return;
+    }
+
+    if (req.method === "DELETE") {
+      const session = await removeSessionAudio(id);
+      sendJson(res, 200, { session });
+      return;
+    }
+
+    if (req.method === "GET") {
+      const session = await readSession(id);
+      if (!session.audio?.extension) {
+        sendJson(res, 404, { error: "No saved audio for this session." });
+        return;
+      }
+
+      try {
+        const content = await fs.readFile(audioPath(id, session.audio.extension));
+        res.writeHead(200, {
+          "Content-Type": session.audio.mimeType || "application/octet-stream",
+          "Content-Length": content.length,
+          "Cache-Control": "no-store",
+        });
+        res.end(content);
+      } catch (error) {
+        if (error.code === "ENOENT") {
+          sendJson(res, 404, { error: "The saved audio file is missing." });
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+  }
+
   if (pathname.startsWith("/api/sessions/")) {
     const id = pathname.slice("/api/sessions/".length);
 
@@ -1169,10 +1265,13 @@ module.exports = {
   createSessionRecord,
   deriveTitle,
   getAppInfo,
+  getAudioDir,
   getDataDir,
   isGreetingQuestion,
   isDiscardableEmptySession,
   listOllamaModels,
+  removeSessionAudio,
+  saveSessionAudio,
   selectQuestionSessions,
   normalizeAiProvider,
   normalizeBaseUrl,

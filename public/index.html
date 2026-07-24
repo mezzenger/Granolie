@@ -96,7 +96,9 @@
                 <button class="record-button" id="record-button" type="button">Start recording</button>
                 <button class="ghost-button" id="stop-button" type="button" disabled>Stop</button>
                 <label class="file-button" for="audio-file-input">Import audio</label>
+                <button class="ghost-button" id="save-audio-button" type="button" disabled>Save audio</button>
                 <button class="ghost-button" id="delete-audio-button" type="button" disabled>Delete audio</button>
+                <button class="ghost-button" id="load-saved-audio-button" type="button" disabled>Load saved audio</button>
                 <input id="audio-file-input" type="file" accept="audio/*" hidden>
               </div>
               <div id="recording-monitor" class="recording-monitor" hidden aria-live="polite">
@@ -116,7 +118,7 @@
                 <button class="primary-button" id="generate-notes-button" type="button">Generate notes</button>
               </div>
               <p class="helper-text" id="transcribe-mode-helper">Cloud transcription uses the API URL and model below.</p>
-              <p class="helper-text" id="notes-mode-helper">Audio stays in the current browser session. Notes and transcripts are stored locally on disk.</p>
+              <p class="helper-text" id="notes-mode-helper">Audio stays in the current browser session unless you choose Save audio. Notes and transcripts are stored locally on disk.</p>
             </div>
           </div>
 
